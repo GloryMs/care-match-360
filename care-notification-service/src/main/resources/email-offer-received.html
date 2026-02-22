@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<div th:fragment="content">
+    <h2>📬 You Have Received a New Care Offer!</h2>
+    <p>Dear <span th:text="${patientName}">Patient</span>,</p>
+    <p>A care provider has sent you a personalized offer.</p>
+
+    <h3>Offer Details:</h3>
+    <ul>
+        <li><strong>Provider:</strong> <span th:text="${providerName}">Care Provider</span></li>
+        <li><strong>Available From:</strong> <span th:text="${availableFrom}">Date</span></li>
+        <li><strong>Match Score:</strong> <span th:text="${matchScore}">85</span>%</li>
+    </ul>
+
+    <p>
+        <a th:href="${offerUrl}" class="button">Review Offer</a>
+    </p>
+
+    <p>Log in to your account to view full details and respond to the offer.</p>
+
+    <p>Best regards,<br>The CareMatch360 Team</p>
+</div>
+</body>
+</html>

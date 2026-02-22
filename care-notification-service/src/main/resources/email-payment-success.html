@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<div th:fragment="content">
+    <h2>✅ Payment Confirmation</h2>
+    <p>Dear <span th:text="${providerName}">Provider</span>,</p>
+    <p>Your payment has been processed successfully.</p>
+
+    <h3>Payment Details:</h3>
+    <ul>
+        <li><strong>Amount:</strong> <span th:text="${amount}">99.99</span> <span th:text="${currency}">EUR</span></li>
+        <li><strong>Invoice Number:</strong> <span th:text="${invoiceNumber}">INV-12345</span></li>
+        <li><strong>Date:</strong> <span th:text="${paymentDate}">2026-02-19</span></li>
+    </ul>
+
+    <p>
+        <a th:href="${invoiceUrl}" class="button">Download Invoice</a>
+    </p>
+
+    <p>Thank you for your continued subscription to CareMatch360!</p>
+
+    <p>Best regards,<br>The CareMatch360 Team</p>
+</div>
+</body>
+</html>

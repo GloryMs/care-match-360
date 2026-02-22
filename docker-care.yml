@@ -1,0 +1,172 @@
+name: care-match
+services:
+  # care-identity-service
+  care-identity-service:
+    build: ./care-identity-service
+    container_name: care-identity-service
+    ports:
+      - "8001:8001"
+#    depends_on:
+#      - eureka-server
+#      - postgres
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care_match_db?currentSchema=care_identity
+      SPRING_DATASOURCE_USERNAME: user1
+      SPRING_DATASOURCE_PASSWORD: user1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: care-match-360-super-secret-key-minimum-256-bits-required-for-hs256-algorithm-security
+      JWT_EXPIRATION: 86400000
+      JWT_ACCESS-TOKEN_EXPIRATION: 900000
+      JWT_REFRESH-TOKEN_EXPIRATION: 604800000
+    networks:
+      - medical-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://172.16.1.122:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # care-profile-service
+  care-profile-service:
+    build: ./care-profile-service
+    container_name: care-profile-service
+    ports:
+      - "8002:8002"
+    #    depends_on:
+    #      - eureka-server
+    #      - postgres
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care_match_db?currentSchema=care_profiles
+      SPRING_DATASOURCE_USERNAME: user1
+      SPRING_DATASOURCE_PASSWORD: user1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: care-match-360-super-secret-key-minimum-256-bits-required-for-hs256-algorithm-security
+      JWT_EXPIRATION: 86400000
+      JWT_ACCESS-TOKEN_EXPIRATION: 900000
+      JWT_REFRESH-TOKEN_EXPIRATION: 604800000
+    networks:
+      - medical-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://172.16.1.122:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # care-match-service
+  care-match-service:
+    build: ./care-match-service
+    container_name: care-match-service
+    ports:
+      - "8003:8003"
+    #    depends_on:
+    #      - eureka-server
+    #      - postgres
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care_match_db?currentSchema=care_matching
+      SPRING_DATASOURCE_USERNAME: user1
+      SPRING_DATASOURCE_PASSWORD: user1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: care-match-360-super-secret-key-minimum-256-bits-required-for-hs256-algorithm-security
+      JWT_EXPIRATION: 86400000
+      JWT_ACCESS-TOKEN_EXPIRATION: 900000
+      JWT_REFRESH-TOKEN_EXPIRATION: 604800000
+    networks:
+      - medical-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://172.16.1.122:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # care-billing-service
+  care-billing-service:
+    build: ./care-billing-service
+    container_name: care-billing-service
+    ports:
+      - "8004:8004"
+    #    depends_on:
+    #      - eureka-server
+    #      - postgres
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care_match_db?currentSchema=care_billing
+      SPRING_DATASOURCE_USERNAME: user1
+      SPRING_DATASOURCE_PASSWORD: user1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: care-match-360-super-secret-key-minimum-256-bits-required-for-hs256-algorithm-security
+      JWT_EXPIRATION: 86400000
+      JWT_ACCESS-TOKEN_EXPIRATION: 900000
+      JWT_REFRESH-TOKEN_EXPIRATION: 604800000
+    networks:
+      - medical-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://172.16.1.122:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # care-notification-service
+  care-notification-service:
+    build: ./care-notification-service
+    container_name: care-notification-service
+    ports:
+      - "8005:8005"
+    #    depends_on:
+    #      - eureka-server
+    #      - postgres
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/care_match_db?currentSchema=care_analytics
+      SPRING_DATASOURCE_USERNAME: user1
+      SPRING_DATASOURCE_PASSWORD: user1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: care-match-360-super-secret-key-minimum-256-bits-required-for-hs256-algorithm-security
+      JWT_EXPIRATION: 86400000
+      JWT_ACCESS-TOKEN_EXPIRATION: 900000
+      JWT_REFRESH-TOKEN_EXPIRATION: 604800000
+    networks:
+      - medical-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://172.16.1.122:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Networks
+networks:
+  medical-network:
+    external: true
+    name: medical-system_medical-network
