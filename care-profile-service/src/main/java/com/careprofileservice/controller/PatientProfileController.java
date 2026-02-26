@@ -131,4 +131,16 @@ public class PatientProfileController {
         documentService.deleteDocument(documentId);
         return ResponseEntity.ok(ApiResponse.success(null, "Document deleted successfully"));
     }
+
+    /**
+     * GET /api/v1/patients/all
+     * Returns all patients who have given consent.
+     * Internal use only – should be secured to ROLE_ADMIN or called service-to-service
+     * with a service-account JWT.  Add @PreAuthorize("hasRole('ADMIN')") if preferred.
+     */
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<List<PatientProfileResponse>>> getAllActivePatients() {
+        List<PatientProfileResponse> patients = patientProfileService.getAllActivePatients();
+        return ResponseEntity.ok(ApiResponse.success(patients, "Active patients retrieved"));
+    }
 }

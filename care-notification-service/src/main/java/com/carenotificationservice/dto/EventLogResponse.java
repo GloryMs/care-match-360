@@ -15,7 +15,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class EventLogResponse {
     private UUID id;
-    private UUID userId;
+    private UUID profileId;
     private String eventType;
     private Map<String, Object> eventData;
     private LocalDateTime timestamp;

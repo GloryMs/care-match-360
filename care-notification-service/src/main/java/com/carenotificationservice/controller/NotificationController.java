@@ -32,31 +32,31 @@ public class NotificationController {
                 .body(ApiResponse.success(notification, "Notification sent successfully"));
     }
 
-    @GetMapping("/user/{userId}")
-    //@Operation(summary = "Get notifications for user")
-    public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotificationsForUser(
-            @PathVariable UUID userId,
+    @GetMapping("/{recipientId}")
+    //@Operation(summary = "Get notifications for a patient/provider/admin by their profile ID")
+    public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotificationsForRecipient(
+            @PathVariable UUID recipientId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
 
-        List<NotificationResponse> notifications = notificationService.getNotificationsForUser(
-                userId, page, size);
+        List<NotificationResponse> notifications = notificationService.getNotificationsForRecipient(
+                recipientId, page, size);
         return ResponseEntity.ok(ApiResponse.success(notifications));
     }
 
-    @GetMapping("/user/{userId}/unread")
-    //@Operation(summary = "Get unread notifications for user")
+    @GetMapping("/{recipientId}/unread")
+    //@Operation(summary = "Get unread notifications for a patient/provider/admin")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getUnreadNotifications(
-            @PathVariable UUID userId) {
+            @PathVariable UUID recipientId) {
 
-        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(userId);
+        List<NotificationResponse> notifications = notificationService.getUnreadNotifications(recipientId);
         return ResponseEntity.ok(ApiResponse.success(notifications));
     }
 
-    @GetMapping("/user/{userId}/unread/count")
+    @GetMapping("/{recipientId}/unread/count")
     //@Operation(summary = "Get unread notification count")
-    public ResponseEntity<ApiResponse<Long>> getUnreadCount(@PathVariable UUID userId) {
-        Long count = notificationService.getUnreadCount(userId);
+    public ResponseEntity<ApiResponse<Long>> getUnreadCount(@PathVariable UUID recipientId) {
+        Long count = notificationService.getUnreadCount(recipientId);
         return ResponseEntity.ok(ApiResponse.success(count));
     }
 
@@ -67,10 +67,10 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(null, "Notification marked as read"));
     }
 
-    @PutMapping("/user/{userId}/read-all")
-    //@Operation(summary = "Mark all notifications as read")
-    public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable UUID userId) {
-        notificationService.markAllAsRead(userId);
+    @PutMapping("/{recipientId}/read-all")
+    //@Operation(summary = "Mark all notifications as read for a recipient")
+    public ResponseEntity<ApiResponse<Void>> markAllAsRead(@PathVariable UUID recipientId) {
+        notificationService.markAllAsRead(recipientId);
         return ResponseEntity.ok(ApiResponse.success(null, "All notifications marked as read"));
     }
 }

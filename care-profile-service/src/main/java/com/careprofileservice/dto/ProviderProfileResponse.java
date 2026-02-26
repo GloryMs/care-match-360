@@ -19,6 +19,7 @@ import java.util.UUID;
 public class ProviderProfileResponse {
     private UUID id;
     private UUID userId;
+    private String email;
     private String facilityName;
     private String providerType;
     private Double latitude;

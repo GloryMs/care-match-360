@@ -1,12 +1,12 @@
 package com.careprofileservice.service;
 
 import com.carecommon.exception.ResourceNotFoundException;
+import com.carecommon.kafkaEvents.ProfileCreatedEvent;
+import com.carecommon.kafkaEvents.ProfileUpdatedEvent;
 import com.careprofileservice.dto.CreatePatientProfileRequest;
 import com.careprofileservice.dto.PatientProfileResponse;
 import com.careprofileservice.dto.UpdatePatientProfileRequest;
-import com.careprofileservice.kafka.ProfileCreatedEvent;
 import com.careprofileservice.kafka.ProfileEventProducer;
-import com.careprofileservice.kafka.ProfileUpdatedEvent;
 import com.careprofileservice.mapper.PatientProfileMapper;
 import com.careprofileservice.model.PatientProfile;
 import com.careprofileservice.repository.PatientProfileRepository;
@@ -21,8 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +34,30 @@ public class PatientProfileService {
     private final PatientProfileRepository patientProfileRepository;
     private final PatientProfileMapper patientProfileMapper;
     private final ProfileEventProducer profileEventProducer;
+
+    @Transactional
+    public void createBasicProfile(UUID userId, String email) {
+        if (patientProfileRepository.existsByUserId(userId)) {
+            log.warn("Patient profile already exists for userId={}, skipping creation", userId);
+            return;
+        }
+
+        PatientProfile profile = PatientProfile.builder()
+                .userId(userId)
+                .email(email)
+                .build();
+        profile = patientProfileRepository.save(profile);
+        log.info("Basic patient profile created: userId={}, profileId={}", userId, profile.getId());
+
+        ProfileCreatedEvent event = ProfileCreatedEvent.builder()
+                .eventType("profile.created")
+                .profileId(profile.getId())
+                .profileType("patient")
+                .userId(userId)
+                .timestamp(LocalDateTime.now())
+                .build();
+        profileEventProducer.sendProfileCreatedEvent(event);
+    }
 
     @Transactional
     public PatientProfileResponse createProfile(UUID userId, CreatePatientProfileRequest request) {
@@ -59,6 +85,19 @@ public class PatientProfileService {
         profileEventProducer.sendProfileCreatedEvent(event);
 
         return patientProfileMapper.toResponse(profile);
+    }
+
+    /**
+     * Returns all patient profiles where the patient has given data-sharing consent.
+     * Used by the matching engine to fan out score calculation when a provider
+     * profile is created or updated (FR-MATCH-01).
+     */
+    @Transactional(readOnly = true)
+    public List<PatientProfileResponse> getAllActivePatients() {
+        return patientProfileRepository.findByConsentGivenTrue()
+                .stream()
+                .map(patientProfileMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -115,6 +154,10 @@ public class PatientProfileService {
                     .orElseThrow(() -> new ResourceNotFoundException("Patient profile", "id", profileId));
             log.info("Profile found = > Id: {}", profile.getId());
             profileResponse =  mapper.map(profile, PatientProfileResponse.class);
+            profileResponse.setLatitude(profile.getLocation().getY());
+            profileResponse.setLongitude(profile.getLocation().getX());
+            log.info("Get profile latitude: {}", profileResponse.getLatitude());
+            log.info("Get profile longitude: {}", profileResponse.getLongitude());
             log.info("Profile mapped = > Id from mapping: {}", profileResponse.getId());
         } catch (Exception e) {
             e.printStackTrace();

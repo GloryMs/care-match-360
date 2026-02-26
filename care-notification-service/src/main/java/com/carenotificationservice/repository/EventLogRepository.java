@@ -15,9 +15,9 @@ import java.util.UUID;
 @Repository
 public interface EventLogRepository extends JpaRepository<EventLog, UUID> {
 
-    List<EventLog> findByUserIdOrderByTimestampDesc(UUID userId);
+    List<EventLog> findByProfileIdOrderByTimestampDesc(UUID profileId);
 
-    Page<EventLog> findByUserIdOrderByTimestampDesc(UUID userId, Pageable pageable);
+    Page<EventLog> findByProfileIdOrderByTimestampDesc(UUID profileId, Pageable pageable);
 
     List<EventLog> findByEventType(String eventType);
 

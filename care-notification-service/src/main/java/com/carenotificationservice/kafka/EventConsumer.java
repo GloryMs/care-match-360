@@ -1,5 +1,6 @@
 package com.carenotificationservice.kafka;
 
+import com.carecommon.kafkaEvents.*;
 import com.carenotificationservice.service.AnalyticsService;
 import com.carenotificationservice.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class EventConsumer {
                 event.getProfileId(), event.getProfileType());
 
         // Log event
-        analyticsService.logEvent(event.getUserId(), "profile.created", null);
+        analyticsService.logEvent(event.getProfileId(), "profile.created", null);
     }
 
     @KafkaListener(

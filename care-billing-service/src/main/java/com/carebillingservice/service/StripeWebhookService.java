@@ -1,8 +1,8 @@
 package com.carebillingservice.service;
 
 import com.carebillingservice.kafka.BillingEventProducer;
-import com.carebillingservice.kafka.events.PaymentFailedEvent;
-import com.carebillingservice.kafka.events.PaymentSucceededEvent;
+import com.carecommon.kafkaEvents.PaymentFailedEvent;
+import com.carecommon.kafkaEvents.PaymentSucceededEvent;
 import com.carebillingservice.model.Invoice;
 import com.carebillingservice.model.PaymentHistory;
 import com.carebillingservice.model.Subscription;
@@ -18,7 +18,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 

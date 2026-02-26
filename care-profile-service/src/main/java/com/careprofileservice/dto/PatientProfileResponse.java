@@ -17,6 +17,7 @@ import java.util.UUID;
 public class PatientProfileResponse {
     private UUID id;
     private UUID userId;
+    private String email;
     private Integer age;
     private String gender;
     private String region;

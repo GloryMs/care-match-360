@@ -9,6 +9,7 @@ import com.careprofileservice.service.ProviderProfileService;
 //import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/providers")
 @RequiredArgsConstructor
+@Slf4j
 //@Tag(name = "Provider Profiles", description = "Provider profile management endpoints")
 public class ProviderProfileController {
 
@@ -137,5 +139,17 @@ public class ProviderProfileController {
     public ResponseEntity<ApiResponse<Void>> deleteDocument(@PathVariable UUID documentId) {
         documentService.deleteDocument(documentId);
         return ResponseEntity.ok(ApiResponse.success(null, "Document deleted successfully"));
+    }
+
+    /**
+     * GET /api/v1/providers/all
+     *
+     * Returns all active (visible) provider profiles.
+     * Internal use by the matching engine.
+     */
+    @GetMapping("/all")
+    public ResponseEntity<ApiResponse<List<ProviderProfileResponse>>> getAllActiveProviders() {
+        List<ProviderProfileResponse> providers = providerProfileService.getAllActiveProviders();
+        return ResponseEntity.ok(ApiResponse.success(providers, "Active providers retrieved"));
     }
 }

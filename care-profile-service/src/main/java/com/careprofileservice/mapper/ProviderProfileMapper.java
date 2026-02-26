@@ -16,6 +16,7 @@ public interface ProviderProfileMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
+    @Mapping(target = "email", ignore = true)
     @Mapping(target = "providerType", expression = "java(mapProviderType(request.getProviderType()))")
     @Mapping(target = "location", expression = "java(createPoint(request.getLatitude(), request.getLongitude()))")
     @Mapping(target = "introVideoUrl", ignore = true)
@@ -33,6 +34,7 @@ public interface ProviderProfileMapper {
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
+    @Mapping(target = "email", ignore = true)
     @Mapping(target = "providerType", expression = "java(mapProviderTypeIfNotNull(request.getProviderType()))")
     @Mapping(target = "location", expression = "java(updatePoint(request.getLatitude(), request.getLongitude(), profile.getLocation()))")
     @Mapping(target = "createdAt", ignore = true)

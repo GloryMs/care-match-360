@@ -8,27 +8,28 @@
 
 1. [Architecture Overview](#1-architecture-overview)
 2. [Authentication & Headers](#2-authentication--headers)
-3. [Standard Response Format](#3-standard-response-format)
-4. [Error Format](#4-error-format)
-5. [Care Identity Service — Port 8001](#5-care-identity-service--port-8001)
-    - [Auth Endpoints](#51-auth-endpoints)
-    - [User Endpoints](#52-user-endpoints)
-    - [Two-Factor Auth Endpoints](#53-two-factor-auth-2fa-endpoints)
-6. [Care Profile Service — Port 8002](#6-care-profile-service--port-8002)
-    - [Patient Profile Endpoints](#61-patient-profile-endpoints)
-    - [Provider Profile Endpoints](#62-provider-profile-endpoints)
-7. [Care Match Service — Port 8003](#7-care-match-service--port-8003)
-    - [Match Endpoints](#71-match-endpoints)
-    - [Offer Endpoints](#72-offer-endpoints)
-8. [Care Billing Service — Port 8004](#8-care-billing-service--port-8004)
-    - [Subscription Endpoints](#81-subscription-endpoints)
-    - [Invoice Endpoints](#82-invoice-endpoints)
-    - [Webhook Endpoints](#83-webhook-endpoints)
-9. [Care Notification Service — Port 8005](#9-care-notification-service--port-8005)
-    - [Notification Endpoints](#91-notification-endpoints)
-    - [Analytics Endpoints](#92-analytics-endpoints)
-10. [Enumerations Reference](#10-enumerations-reference)
-11. [Subscription Plans Reference](#11-subscription-plans-reference)
+3. [Registration & Onboarding Flow](#3-registration--onboarding-flow)
+4. [Standard Response Format](#4-standard-response-format)
+5. [Error Format](#5-error-format)
+6. [Care Identity Service — Port 8001](#6-care-identity-service--port-8001)
+    - [Auth Endpoints](#61-auth-endpoints)
+    - [User Endpoints](#62-user-endpoints)
+    - [Two-Factor Auth Endpoints](#63-two-factor-auth-2fa-endpoints)
+7. [Care Profile Service — Port 8002](#7-care-profile-service--port-8002)
+    - [Patient Profile Endpoints](#71-patient-profile-endpoints)
+    - [Provider Profile Endpoints](#72-provider-profile-endpoints)
+8. [Care Match Service — Port 8003](#8-care-match-service--port-8003)
+    - [Match Endpoints](#81-match-endpoints)
+    - [Offer Endpoints](#82-offer-endpoints)
+9. [Care Billing Service — Port 8004](#9-care-billing-service--port-8004)
+    - [Subscription Endpoints](#91-subscription-endpoints)
+    - [Invoice Endpoints](#92-invoice-endpoints)
+    - [Webhook Endpoints](#93-webhook-endpoints)
+10. [Care Notification Service — Port 8005](#10-care-notification-service--port-8005)
+    - [Notification Endpoints](#101-notification-endpoints)
+    - [Analytics Endpoints](#102-analytics-endpoints)
+11. [Enumerations Reference](#11-enumerations-reference)
+12. [Subscription Plans Reference](#12-subscription-plans-reference)
 
 ---
 
@@ -52,11 +53,13 @@ All protected endpoints require a **JWT Bearer token** obtained from the login e
 Authorization: Bearer <accessToken>
 ```
 
-Many endpoints also require the resolved user ID (injected by the API gateway or passed directly during development):
+Endpoints that act on behalf of a specific patient or provider use profile ID headers (the profile's own UUID, **not** the identity `userId`):
 
-```
-X-User-Id: <uuid>
-```
+| Header | Used by | Description |
+|---|---|---|
+| `X-User-Id` | Auth endpoints (logout, change-password, 2FA) | Identity service user UUID |
+| `X-Provider-Id` | Provider actions (create offer, send offer) | Provider **profile** UUID |
+| `X-Patient-Id` | Patient actions (accept offer, reject offer) | Patient **profile** UUID |
 
 **Token Details**
 
@@ -68,7 +71,54 @@ X-User-Id: <uuid>
 
 ---
 
-## 3. Standard Response Format
+## 3. Registration & Onboarding Flow
+
+After a user registers, the following sequence must be followed exactly:
+
+```
+1. POST /auth/register          → creates user account (unverified)
+2. User clicks verification link in email
+3. POST /auth/verify-email      → verifies account
+                                  → backend AUTO-CREATES a basic profile with email pre-filled
+4. POST /auth/login             → get accessToken + user.id
+5. GET  /patients/me            → (PATIENT / RELATIVE roles) check if profile exists
+   GET  /providers/me           → (RESIDENTIAL_PROVIDER / AMBULATORY_PROVIDER roles)
+                                  → profile exists (auto-created) with only email populated
+6. PUT  /patients  or           → user fills in remaining profile fields
+   PUT  /providers               → DO NOT call POST — profile already exists
+```
+
+**Role → Auto-created Profile mapping**
+
+| Role | Auto-created profile type | providerType set |
+|---|---|---|
+| `PATIENT` | `PatientProfile` | — |
+| `RELATIVE` | `PatientProfile` | — |
+| `RESIDENTIAL_PROVIDER` | `ProviderProfile` | `RESIDENTIAL` |
+| `AMBULATORY_PROVIDER` | `ProviderProfile` | `AMBULATORY` |
+| `ADMIN`, `SUPER_ADMIN` | _(none)_ | — |
+
+**Profile completion check on login**
+
+After every login, fetch the profile and check if required fields are null. If yes, redirect to the profile completion wizard:
+
+```js
+// Patient
+const profile = await GET('/patients/me');
+if (!profile.data.age || !profile.data.region) {
+  navigate('/complete-profile');
+}
+
+// Provider
+const profile = await GET('/providers/me');
+if (!profile.data.facilityName || !profile.data.address) {
+  navigate('/complete-profile');
+}
+```
+
+---
+
+## 4. Standard Response Format
 
 Every successful response is wrapped in `ApiResponse<T>`:
 
@@ -102,7 +152,7 @@ Paginated responses use `PageResponse<T>` as the `data` value:
 
 ---
 
-## 4. Error Format
+## 5. Error Format
 
 ```json
 {
@@ -121,13 +171,13 @@ Paginated responses use `PageResponse<T>` as the `data` value:
 
 ---
 
-## 5. Care Identity Service — Port 8001
+## 6. Care Identity Service — Port 8001
 
 Base path: `/api/v1`
 
 ---
 
-### 5.1 Auth Endpoints
+### 6.1 Auth Endpoints
 
 #### `POST /auth/register`
 
@@ -266,6 +316,8 @@ Invalidate the current session.
 
 Verify the user's email address using the token sent by email.
 
+> **Auto-profile creation:** On successful verification, the backend automatically creates a basic profile (`PatientProfile` or `ProviderProfile`) based on the user's role. The profile is created with only `userId` and `email` populated — all other fields are `null`. **After verification, redirect the user to the "complete your profile" page which calls `PUT /patients` or `PUT /providers` to fill in the remaining details. Do NOT call `POST /patients` / `POST /providers` — those will return a validation error because the profile already exists.**
+
 **Request Body**
 
 | Field | Type | Required |
@@ -372,7 +424,7 @@ Change the password for the currently authenticated user.
 
 ---
 
-### 5.2 User Endpoints
+### 6.2 User Endpoints
 
 #### `GET /users/{userId}`
 
@@ -462,7 +514,7 @@ Reactivate a previously deactivated user account.
 
 ---
 
-### 5.3 Two-Factor Auth (2FA) Endpoints
+### 6.3 Two-Factor Auth (2FA) Endpoints
 
 All 2FA endpoints require the `X-User-Id` header.
 
@@ -561,17 +613,19 @@ Check whether 2FA is enabled for the current user.
 
 ---
 
-## 6. Care Profile Service — Port 8002
+## 7. Care Profile Service — Port 8002
 
 Base path: `/api/v1`
 
 ---
 
-### 6.1 Patient Profile Endpoints
+### 7.1 Patient Profile Endpoints
 
 #### `POST /patients`
 
 Create a new patient profile for the authenticated user.
+
+> **Important:** A basic patient profile is created automatically when the user verifies their email. **Do not call this endpoint** after email verification — it will return `400 Bad Request` ("Patient profile already exists for this user"). Instead use `PUT /patients` to complete the existing profile.
 
 **Headers** — `X-User-Id` required
 
@@ -627,6 +681,7 @@ Create a new patient profile for the authenticated user.
   "data": {
     "id": "550e8400-e29b-41d4-a716-446655440001",
     "userId": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
     "age": 72,
     "gender": "female",
     "region": "Bavaria",
@@ -789,11 +844,13 @@ Delete a document from the patient profile.
 
 ---
 
-### 6.2 Provider Profile Endpoints
+### 7.2 Provider Profile Endpoints
 
 #### `POST /providers`
 
 Create a new provider profile for the authenticated user.
+
+> **Important:** A basic provider profile is created automatically when the user verifies their email (based on their role: `RESIDENTIAL_PROVIDER` or `AMBULATORY_PROVIDER`). **Do not call this endpoint** after email verification — it will return `400 Bad Request` ("Provider profile already exists for this user"). Instead use `PUT /providers` to complete the existing profile.
 
 **Headers** — `X-User-Id` required
 
@@ -852,6 +909,7 @@ Create a new provider profile for the authenticated user.
   "data": {
     "id": "550e8400-e29b-41d4-a716-446655440002",
     "userId": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "provider@example.com",
     "facilityName": "Sonnenschein Pflegeheim",
     "providerType": "RESIDENTIAL",
     "latitude": 48.1351,
@@ -1046,13 +1104,13 @@ Delete a document from the provider profile.
 
 ---
 
-## 7. Care Match Service — Port 8003
+## 8. Care Match Service — Port 8003
 
 Base path: `/api/v1`
 
 ---
 
-### 7.1 Match Endpoints
+### 8.1 Match Endpoints
 
 #### `POST /matches/calculate`
 
@@ -1207,19 +1265,23 @@ Trigger recalculation of all match scores for a provider against all patients.
 
 ---
 
-### 7.2 Offer Endpoints
+### 8.2 Offer Endpoints
 
 #### `POST /offers`
 
-Create a new care offer (starts in `DRAFT` status).
+Create a new care offer (starts in `DRAFT` status). Called by a provider.
 
-**Headers** — `X-User-Id` required
+**Headers**
+
+| Header | Required | Description |
+|---|---|---|
+| `X-Provider-Id` | Yes | The provider's **profile** UUID |
 
 **Request Body**
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `patientId` | `UUID` | Yes | The target patient |
+| `patientId` | `UUID` | Yes | The target patient's **profile** UUID |
 | `message` | `string` | Yes | Offer message text |
 | `availabilityDetails` | `object` | No | Free-form availability information |
 
@@ -1236,6 +1298,8 @@ Create a new care offer (starts in `DRAFT` status).
 ```
 
 **Response** — `ApiResponse<OfferResponse>`
+
+> `patientId` and `providerId` in the response are **profile** UUIDs, not identity user IDs.
 
 ```json
 {
@@ -1267,9 +1331,13 @@ Create a new care offer (starts in `DRAFT` status).
 
 #### `PUT /offers/{offerId}/send`
 
-Send a draft offer to the patient (changes status from `DRAFT` to `SENT`).
+Send a draft offer to the patient (changes status from `DRAFT` to `SENT`). Called by the provider who owns the offer.
 
-**Headers** — `X-User-Id` required
+**Headers**
+
+| Header | Required |
+|---|---|
+| `X-Provider-Id` | Yes |
 
 **Path Parameters**
 
@@ -1285,7 +1353,11 @@ Send a draft offer to the patient (changes status from `DRAFT` to `SENT`).
 
 Accept an offer (patient action — changes status to `ACCEPTED`).
 
-**Headers** — `X-User-Id` required
+**Headers**
+
+| Header | Required |
+|---|---|
+| `X-Patient-Id` | Yes |
 
 **Path Parameters**
 
@@ -1301,7 +1373,11 @@ Accept an offer (patient action — changes status to `ACCEPTED`).
 
 Reject an offer (patient action — changes status to `REJECTED`).
 
-**Headers** — `X-User-Id` required
+**Headers**
+
+| Header | Required |
+|---|---|
+| `X-Patient-Id` | Yes |
 
 **Path Parameters**
 
@@ -1411,13 +1487,13 @@ Get the full status change history of an offer.
 
 ---
 
-## 8. Care Billing Service — Port 8004
+## 9. Care Billing Service — Port 8004
 
 Base path: `/api/v1`
 
 ---
 
-### 8.1 Subscription Endpoints
+### 9.1 Subscription Endpoints
 
 #### `POST /subscriptions`
 
@@ -1543,7 +1619,7 @@ Get the active subscription for a provider.
 
 ---
 
-### 8.2 Invoice Endpoints
+### 9.2 Invoice Endpoints
 
 #### `GET /invoices/{invoiceId}`
 
@@ -1630,7 +1706,7 @@ Download the PDF version of an invoice.
 
 ---
 
-### 8.3 Webhook Endpoints
+### 9.3 Webhook Endpoints
 
 #### `POST /webhooks/stripe`
 
@@ -1646,23 +1722,26 @@ Receives and processes Stripe webhook events. Used internally by Stripe — the 
 
 ---
 
-## 9. Care Notification Service — Port 8005
+## 10. Care Notification Service — Port 8005
 
 Base path: `/api/v1`
 
 ---
 
-### 9.1 Notification Endpoints
+### 10.1 Notification Endpoints
 
 #### `POST /notifications`
 
-Send a notification to a user.
+Send a notification to a patient, provider, or admin identified by their **profile ID**.
+
+> For `EMAIL` type: `recipientEmail` is required. For `IN_APP`/`PUSH`: `recipientEmail` may be omitted.
 
 **Request Body**
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `userId` | `UUID` | Yes | |
+| `recipientId` | `UUID` | Yes | Patient / provider / admin **profile** UUID |
+| `recipientEmail` | `string` | Conditional | Required when `type` is `EMAIL` |
 | `type` | `string` (enum) | Yes | See [NotificationType](#notificationtype) |
 | `channel` | `string` | Yes | e.g. `"email"`, `"in_app"` |
 | `subject` | `string` | No | Used for email notifications |
@@ -1671,7 +1750,7 @@ Send a notification to a user.
 
 ```json
 {
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "recipientId": "550e8400-e29b-41d4-a716-446655440001",
   "type": "IN_APP",
   "channel": "in_app",
   "subject": "New offer received",
@@ -1690,7 +1769,7 @@ Send a notification to a user.
   "success": true,
   "data": {
     "id": "notif-uuid-001",
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
+    "recipientId": "550e8400-e29b-41d4-a716-446655440001",
     "type": "IN_APP",
     "channel": "in_app",
     "subject": "New offer received",
@@ -1708,15 +1787,15 @@ Send a notification to a user.
 
 ---
 
-#### `GET /notifications/user/{userId}`
+#### `GET /notifications/{recipientId}`
 
-Get all notifications for a user, paginated.
+Get all notifications for a patient/provider/admin by their **profile ID**, paginated.
 
 **Path Parameters**
 
-| Parameter | Type |
-|---|---|
-| `userId` | `UUID` |
+| Parameter | Type | Description |
+|---|---|---|
+| `recipientId` | `UUID` | Patient / provider / admin profile UUID |
 
 **Query Parameters**
 
@@ -1725,33 +1804,33 @@ Get all notifications for a user, paginated.
 | `page` | `integer` | `0` |
 | `size` | `integer` | `20` |
 
-**Response** — `ApiResponse<PageResponse<NotificationResponse>>`
+**Response** — `ApiResponse<List<NotificationResponse>>`
 
 ---
 
-#### `GET /notifications/user/{userId}/unread`
+#### `GET /notifications/{recipientId}/unread`
 
-Get all unread notifications for a user.
+Get all unread notifications for a recipient.
 
 **Path Parameters**
 
 | Parameter | Type |
 |---|---|
-| `userId` | `UUID` |
+| `recipientId` | `UUID` |
 
 **Response** — `ApiResponse<List<NotificationResponse>>`
 
 ---
 
-#### `GET /notifications/user/{userId}/unread/count`
+#### `GET /notifications/{recipientId}/unread/count`
 
-Get the count of unread notifications for a user.
+Get the count of unread notifications for a recipient.
 
 **Path Parameters**
 
 | Parameter | Type |
 |---|---|
-| `userId` | `UUID` |
+| `recipientId` | `UUID` |
 
 **Response** — `ApiResponse<Long>`
 
@@ -1776,35 +1855,35 @@ Mark a specific notification as read.
 |---|---|
 | `notificationId` | `UUID` |
 
-**Response** — `ApiResponse<NotificationResponse>`
+**Response** — `ApiResponse<null>`
 
 ---
 
-#### `PUT /notifications/user/{userId}/read-all`
+#### `PUT /notifications/{recipientId}/read-all`
 
-Mark all notifications for a user as read.
+Mark all notifications for a recipient as read.
 
 **Path Parameters**
 
 | Parameter | Type |
 |---|---|
-| `userId` | `UUID` |
+| `recipientId` | `UUID` |
 
 **Response** — `ApiResponse<null>`
 
 ---
 
-### 9.2 Analytics Endpoints
+### 10.2 Analytics Endpoints
 
-#### `GET /analytics/events/user/{userId}`
+#### `GET /analytics/events/profile/{profileId}`
 
-Get all event logs for a specific user, paginated.
+Get all event logs for a patient/provider/admin by their **profile ID**, paginated.
 
 **Path Parameters**
 
-| Parameter | Type |
-|---|---|
-| `userId` | `UUID` |
+| Parameter | Type | Description |
+|---|---|---|
+| `profileId` | `UUID` | Patient / provider / admin profile UUID |
 
 **Query Parameters**
 
@@ -1813,31 +1892,23 @@ Get all event logs for a specific user, paginated.
 | `page` | `integer` | `0` |
 | `size` | `integer` | `20` |
 
-**Response** — `ApiResponse<PageResponse<EventLogResponse>>`
+**Response** — `ApiResponse<List<EventLogResponse>>`
 
 ```json
 {
   "success": true,
-  "data": {
-    "content": [
-      {
-        "id": "event-uuid-001",
-        "userId": "550e8400-e29b-41d4-a716-446655440000",
-        "eventType": "offer.sent",
-        "eventData": {
-          "offerId": "offer-uuid-001",
-          "patientId": "550e8400-e29b-41d4-a716-446655440001"
-        },
-        "timestamp": "2026-02-22T10:00:00"
-      }
-    ],
-    "page": 0,
-    "size": 20,
-    "totalElements": 1,
-    "totalPages": 1,
-    "first": true,
-    "last": true
-  },
+  "data": [
+    {
+      "id": "event-uuid-001",
+      "profileId": "550e8400-e29b-41d4-a716-446655440001",
+      "eventType": "offer.sent",
+      "eventData": {
+        "offerId": "offer-uuid-001",
+        "patientId": "550e8400-e29b-41d4-a716-446655440001"
+      },
+      "timestamp": "2026-02-22T10:00:00"
+    }
+  ],
   "message": "OK",
   "timestamp": "2026-02-22T10:00:00"
 }
@@ -1989,7 +2060,7 @@ Generate a full analytics report.
 
 ---
 
-## 10. Enumerations Reference
+## 11. Enumerations Reference
 
 ### UserRole
 
@@ -2066,7 +2137,7 @@ Generate a full analytics report.
 
 ---
 
-## 11. Subscription Plans Reference
+## 12. Subscription Plans Reference
 
 | Plan | Tier | Price | Offers/Month | Support | Features |
 |---|---|---|---|---|---|

@@ -15,19 +15,19 @@ import java.util.UUID;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    List<Notification> findByUserIdOrderByCreatedAtDesc(UUID userId);
+    List<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId);
 
-    Page<Notification> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    Page<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
 
-    @Query("SELECT n FROM Notification n WHERE n.userId = :userId AND n.readAt IS NULL ORDER BY n.createdAt DESC")
-    List<Notification> findUnreadNotificationsByUserId(@Param("userId") UUID userId);
+    @Query("SELECT n FROM Notification n WHERE n.recipientId = :recipientId AND n.readAt IS NULL ORDER BY n.createdAt DESC")
+    List<Notification> findUnreadNotificationsByRecipientId(@Param("recipientId") UUID recipientId);
 
     List<Notification> findByStatus(Notification.NotificationStatus status);
 
     @Query("SELECT n FROM Notification n WHERE n.status = 'FAILED' AND n.retryCount < 3")
     List<Notification> findFailedNotificationsForRetry();
 
-    long countByUserIdAndReadAtIsNull(UUID userId);
+    long countByRecipientIdAndReadAtIsNull(UUID recipientId);
 
     void deleteByCreatedAtBefore(LocalDateTime dateTime);
 }

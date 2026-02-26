@@ -1,5 +1,4 @@
-package com.carematchservice.kafka.events;
-
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,10 +12,9 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OfferSentEvent {
-    private String eventType = "offer.sent";
-    private UUID offerId;
-    private UUID patientId;
+public class SubscriptionExpiredEvent {
+    private String eventType = "subscription.expired";
+    private UUID subscriptionId;
     private UUID providerId;
     private LocalDateTime timestamp;
 }

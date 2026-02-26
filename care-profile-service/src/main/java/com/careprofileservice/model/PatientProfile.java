@@ -23,6 +23,9 @@ public class PatientProfile extends BaseEntity {
     @Column(name = "user_id", nullable = false, unique = true)
     private UUID userId;
 
+    @Column(name = "email", length = 255)
+    private String email;
+
     @Column(name = "age")
     private Integer age;
 

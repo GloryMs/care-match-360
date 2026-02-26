@@ -14,7 +14,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class NotificationResponse {
     private UUID id;
-    private UUID userId;
+    private UUID recipientId;
     private String type;
     private String channel;
     private String subject;

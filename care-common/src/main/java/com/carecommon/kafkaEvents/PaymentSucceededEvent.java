@@ -1,4 +1,4 @@
-package com.carenotificationservice.kafka;
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,11 +13,12 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MatchCalculatedEvent {
-    private String eventType;
-    private UUID matchId;
-    private UUID patientId;
+public class PaymentSucceededEvent {
+    private String eventType = "payment.succeeded";
+    private UUID subscriptionId;
+    private UUID invoiceId;
     private UUID providerId;
-    private BigDecimal score;
+    private BigDecimal amount;
+    private String currency;
     private LocalDateTime timestamp;
 }

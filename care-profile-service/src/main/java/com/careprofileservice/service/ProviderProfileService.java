@@ -1,12 +1,11 @@
 package com.careprofileservice.service;
 
 import com.carecommon.exception.ResourceNotFoundException;
+import com.carecommon.kafkaEvents.ProfileCreatedEvent;
+import com.carecommon.kafkaEvents.ProfileUpdatedEvent;
 import com.careprofileservice.dto.*;
-import com.careprofileservice.kafka.ProfileCreatedEvent;
 import com.careprofileservice.kafka.ProfileEventProducer;
-import com.careprofileservice.kafka.ProfileUpdatedEvent;
 import com.careprofileservice.mapper.ProviderProfileMapper;
-import com.careprofileservice.model.PatientProfile;
 import com.careprofileservice.model.ProviderProfile;
 import com.careprofileservice.model.SearchHistory;
 import com.careprofileservice.repository.ProviderProfileRepository;
@@ -38,6 +37,31 @@ public class ProviderProfileService {
     private final ProfileEventProducer profileEventProducer;
 
     @Transactional
+    public void createBasicProfile(UUID userId, String email, ProviderProfile.ProviderType providerType) {
+        if (providerProfileRepository.existsByUserId(userId)) {
+            log.warn("Provider profile already exists for userId={}, skipping creation", userId);
+            return;
+        }
+
+        ProviderProfile profile = ProviderProfile.builder()
+                .userId(userId)
+                .email(email)
+                .providerType(providerType)
+                .build();
+        profile = providerProfileRepository.save(profile);
+        log.info("Basic provider profile created: userId={}, profileId={}", userId, profile.getId());
+
+        ProfileCreatedEvent event = ProfileCreatedEvent.builder()
+                .eventType("profile.created")
+                .profileId(profile.getId())
+                .profileType("provider")
+                .userId(userId)
+                .timestamp(LocalDateTime.now())
+                .build();
+        profileEventProducer.sendProfileCreatedEvent(event);
+    }
+
+    @Transactional
     public ProviderProfileResponse createProfile(UUID userId, CreateProviderProfileRequest request) {
         // Check if profile already exists
         if (providerProfileRepository.existsByUserId(userId)) {
@@ -63,6 +87,21 @@ public class ProviderProfileService {
         profileEventProducer.sendProfileCreatedEvent(event);
 
         return providerProfileMapper.toResponse(profile);
+    }
+
+    /**
+     * Returns all visible provider profiles (isVisible = true).
+     * Used by the matching engine when a patient profile is created or updated.
+     */
+    @Transactional(readOnly = true)
+    public List<ProviderProfileResponse> getAllActiveProviders() {
+        // findByIsVisibleTrue(Pageable) exists; we use the List overload below.
+        // If that overload doesn't exist yet, add it to ProviderProfileRepository:
+        //   List<ProviderProfile> findByIsVisibleTrue();
+        return providerProfileRepository.findByIsVisibleTrue()
+                .stream()
+                .map(providerProfileMapper::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -121,6 +160,10 @@ public class ProviderProfileService {
                     .orElseThrow(() -> new ResourceNotFoundException("Provider profile", "id", profileId));
             log.info("Profile found = > Id: {}", profile.getId());
             profileResponse =  mapper.map(profile, ProviderProfileResponse.class);
+            profileResponse.setLatitude(profile.getLocation().getY());
+            profileResponse.setLongitude(profile.getLocation().getX());
+            log.info("Get profile latitude: {}", profileResponse.getLatitude());
+            log.info("Get profile longitude: {}", profileResponse.getLongitude());
             log.info("Profile mapped = > Id from mapping: {}", profileResponse.getId());
         } catch (Exception e) {
             e.printStackTrace();

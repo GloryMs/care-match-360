@@ -1,4 +1,5 @@
-package com.carenotificationservice.kafka;
+package com.carecommon.kafkaEvents;
+
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,8 +13,8 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OfferAcceptedEvent {
-    private String eventType;
+public class OfferSentEvent {
+    private String eventType = "offer.sent";
     private UUID offerId;
     private UUID patientId;
     private UUID providerId;

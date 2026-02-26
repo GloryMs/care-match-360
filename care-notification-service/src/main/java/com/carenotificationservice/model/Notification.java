@@ -20,8 +20,11 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    @Column(name = "recipient_id", nullable = false)
+    private UUID recipientId;
+
+    @Column(name = "recipient_email", length = 255)
+    private String recipientEmail;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 20)

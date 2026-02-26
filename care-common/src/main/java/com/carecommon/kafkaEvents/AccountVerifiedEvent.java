@@ -1,4 +1,4 @@
-package com.carebillingservice.kafka.events;
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,10 +12,9 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SubscriptionCreatedEvent {
-    private String eventType = "subscription.created";
-    private UUID subscriptionId;
-    private UUID providerId;
-    private String tier;
+public class AccountVerifiedEvent {
+    private UUID userId;
+    private String email;
+    private String role; // PATIENT, RELATIVE, RESIDENTIAL_PROVIDER, AMBULATORY_PROVIDER, ADMIN, SUPER_ADMIN
     private LocalDateTime timestamp;
 }

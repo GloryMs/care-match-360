@@ -5,8 +5,10 @@ import com.carecommon.constants.ErrorCodes;
 import com.carecommon.exception.ResourceNotFoundException;
 import com.carecommon.exception.UnauthorizedException;
 import com.carecommon.exception.ValidationException;
+import com.carecommon.kafkaEvents.AccountVerifiedEvent;
 import com.carecommon.util.JwtUtil;
 import com.careidentityservice.dto.*;
+import com.careidentityservice.kafka.IdentityEventProducer;
 import com.careidentityservice.mapper.UserMapper;
 import com.careidentityservice.model.EmailVerificationToken;
 import com.careidentityservice.model.PasswordResetToken;
@@ -39,6 +41,7 @@ public class AuthService {
     private final EmailService emailService;
     private final TwoFactorAuthService twoFactorAuthService;
     private final UserMapper userMapper;
+    private final IdentityEventProducer identityEventProducer;
 
     @Value("${jwt.access-token.expiration}")
     private long accessTokenExpiration;
@@ -218,6 +221,15 @@ public class AuthService {
         verificationTokenRepository.save(verificationToken);
 
         log.info("Email verified for user: {}", user.getEmail());
+
+        // Publish event so profile service can create a basic profile
+        AccountVerifiedEvent event = AccountVerifiedEvent.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .timestamp(LocalDateTime.now())
+                .build();
+        identityEventProducer.publishAccountVerifiedEvent(event);
     }
 
     @Transactional

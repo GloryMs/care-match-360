@@ -1,7 +1,7 @@
 package com.carematchservice.config;
 
-import com.carematchservice.kafka.events.ProfileCreatedEvent;
-import com.carematchservice.kafka.events.ProfileUpdatedEvent;
+import com.carecommon.kafkaEvents.ProfileCreatedEvent;
+import com.carecommon.kafkaEvents.ProfileUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -67,8 +67,8 @@ public class KafkaConfig {
         Map<String, Class<?>> idClassMapping = new HashMap<>();
         idClassMapping.put("com.careprofileservice.kafka.ProfileCreatedEvent", ProfileCreatedEvent.class);
         idClassMapping.put("com.careprofileservice.kafka.ProfileUpdatedEvent", ProfileUpdatedEvent.class);
-        idClassMapping.put("profileCreated", ProfileCreatedEvent.class);
-        idClassMapping.put("profileUpdated", ProfileUpdatedEvent.class);
+        idClassMapping.put("ProfileCreatedEvent", ProfileCreatedEvent.class);
+        idClassMapping.put("ProfileUpdatedEvent", ProfileUpdatedEvent.class);
 
         DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
         typeMapper.addTrustedPackages("*");

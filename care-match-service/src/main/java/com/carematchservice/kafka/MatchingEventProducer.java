@@ -1,9 +1,9 @@
 package com.carematchservice.kafka;
 
-import com.carematchservice.kafka.events.MatchCalculatedEvent;
-import com.carematchservice.kafka.events.OfferAcceptedEvent;
-import com.carematchservice.kafka.events.OfferRejectedEvent;
-import com.carematchservice.kafka.events.OfferSentEvent;
+import com.carecommon.kafkaEvents.MatchCalculatedEvent;
+import com.carecommon.kafkaEvents.OfferAcceptedEvent;
+import com.carecommon.kafkaEvents.OfferRejectedEvent;
+import com.carecommon.kafkaEvents.OfferSentEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

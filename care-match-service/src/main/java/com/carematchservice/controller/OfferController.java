@@ -25,14 +25,10 @@ public class OfferController {
     @PostMapping
     //@Operation(summary = "Create offer (provider only)")
     public ResponseEntity<ApiResponse<OfferResponse>> createOffer(
-            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-Provider-Id") String providerId,
             @Valid @RequestBody CreateOfferRequest request) {
 
-        // In production, you'd get provider profile ID from user ID via Profile Service
-        // For now, we assume userId corresponds to provider profile ID
-        UUID providerId = UUID.fromString(userId);
-
-        OfferResponse offer = offerService.createOffer(providerId, request);
+        OfferResponse offer = offerService.createOffer(UUID.fromString(providerId), request);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success(offer, "Offer created successfully"));
@@ -42,10 +38,9 @@ public class OfferController {
     //@Operation(summary = "Send offer to patient (provider only)")
     public ResponseEntity<ApiResponse<OfferResponse>> sendOffer(
             @PathVariable UUID offerId,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-Provider-Id") String providerId) {
 
-        UUID providerId = UUID.fromString(userId);
-        OfferResponse offer = offerService.sendOffer(offerId, providerId);
+        OfferResponse offer = offerService.sendOffer(offerId, UUID.fromString(providerId));
         return ResponseEntity.ok(ApiResponse.success(offer, "Offer sent successfully"));
     }
 
@@ -53,10 +48,9 @@ public class OfferController {
     //@Operation(summary = "Accept offer (patient only)")
     public ResponseEntity<ApiResponse<OfferResponse>> acceptOffer(
             @PathVariable UUID offerId,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-Patient-Id") String patientId) {
 
-        UUID patientId = UUID.fromString(userId);
-        OfferResponse offer = offerService.acceptOffer(offerId, patientId);
+        OfferResponse offer = offerService.acceptOffer(offerId, UUID.fromString(patientId));
         return ResponseEntity.ok(ApiResponse.success(offer, "Offer accepted successfully"));
     }
 
@@ -64,10 +58,9 @@ public class OfferController {
     //@Operation(summary = "Reject offer (patient only)")
     public ResponseEntity<ApiResponse<OfferResponse>> rejectOffer(
             @PathVariable UUID offerId,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-Patient-Id") String patientId) {
 
-        UUID patientId = UUID.fromString(userId);
-        OfferResponse offer = offerService.rejectOffer(offerId, patientId);
+        OfferResponse offer = offerService.rejectOffer(offerId, UUID.fromString(patientId));
         return ResponseEntity.ok(ApiResponse.success(offer, "Offer rejected successfully"));
     }
 

@@ -23,14 +23,14 @@ public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
 
-    @GetMapping("/events/user/{userId}")
-    //@Operation(summary = "Get event logs for user")
-    public ResponseEntity<ApiResponse<List<EventLogResponse>>> getEventLogsForUser(
-            @PathVariable UUID userId,
+    @GetMapping("/events/profile/{profileId}")
+    //@Operation(summary = "Get event logs for a patient/provider/admin by their profile ID")
+    public ResponseEntity<ApiResponse<List<EventLogResponse>>> getEventLogsForProfile(
+            @PathVariable UUID profileId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
 
-        List<EventLogResponse> eventLogs = analyticsService.getEventLogsForUser(userId, page, size);
+        List<EventLogResponse> eventLogs = analyticsService.getEventLogsForProfile(profileId, page, size);
         return ResponseEntity.ok(ApiResponse.success(eventLogs));
     }
 

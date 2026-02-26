@@ -22,6 +22,7 @@ public interface ProviderProfileRepository extends JpaRepository<ProviderProfile
     List<ProviderProfile> findByProviderTypeAndIsVisibleTrue(ProviderProfile.ProviderType providerType);
 
     Page<ProviderProfile> findByIsVisibleTrue(Pageable pageable);
+    List<ProviderProfile> findByIsVisibleTrue();
 
     @Query(value = "SELECT * FROM care_profiles.provider_profiles " +
             "WHERE provider_type = :providerType " +

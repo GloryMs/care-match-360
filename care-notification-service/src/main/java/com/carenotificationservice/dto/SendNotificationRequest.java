@@ -16,8 +16,11 @@ import java.util.UUID;
 @AllArgsConstructor
 public class SendNotificationRequest {
 
-    @NotNull(message = "User ID is required")
-    private UUID userId;
+    @NotNull(message = "Recipient ID is required")
+    private UUID recipientId;
+
+    // Required for EMAIL type notifications
+    private String recipientEmail;
 
     @NotBlank(message = "Notification type is required")
     private String type; // EMAIL, IN_APP, PUSH

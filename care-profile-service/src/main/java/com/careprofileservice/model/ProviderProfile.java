@@ -25,6 +25,9 @@ public class ProviderProfile extends BaseEntity {
     @Column(name = "user_id", nullable = false, unique = true)
     private UUID userId;
 
+    @Column(name = "email", length = 255)
+    private String email;
+
     @Column(name = "facility_name", length = 255)
     private String facilityName;
 

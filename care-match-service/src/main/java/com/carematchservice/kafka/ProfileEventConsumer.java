@@ -1,14 +1,11 @@
 package com.carematchservice.kafka;
 
-import com.carematchservice.kafka.events.ProfileCreatedEvent;
-import com.carematchservice.kafka.events.ProfileUpdatedEvent;
+import com.carecommon.kafkaEvents.ProfileCreatedEvent;
+import com.carecommon.kafkaEvents.ProfileUpdatedEvent;
 import com.carematchservice.service.MatchingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,7 +16,7 @@ public class ProfileEventConsumer {
     private final MatchingService matchingService;
 
     @KafkaListener(topics = "${kafka.topics.profile-created}", groupId = "${spring.kafka.consumer.group-id}")
-    public void handleProfileCreated(com.carematchservice.kafka.events.ProfileCreatedEvent event) {
+    public void handleProfileCreated(ProfileCreatedEvent event) {
 
         log.info("Received profile created event: profileId={}, profileType={}",
                 event.getProfileId(), event.getProfileType());
@@ -40,7 +37,7 @@ public class ProfileEventConsumer {
     }
 
     @KafkaListener(topics = "${kafka.topics.profile-updated}", groupId = "${spring.kafka.consumer.group-id}")
-    public void handleProfileUpdated(com.carematchservice.kafka.events.ProfileUpdatedEvent event) {
+    public void handleProfileUpdated(ProfileUpdatedEvent event) {
 
         log.info("Received profile updated event: profileId={}, profileType={}",
                 event.getProfileId(), event.getProfileType());
@@ -63,7 +60,7 @@ public class ProfileEventConsumer {
         }
     }
 
-    private boolean shouldRecalculateMatches(com.carematchservice.kafka.events.ProfileUpdatedEvent event) {
+    private boolean shouldRecalculateMatches(ProfileUpdatedEvent event) {
         if (event.getChanges() == null || event.getChanges().isEmpty()) {
             return false;
         }

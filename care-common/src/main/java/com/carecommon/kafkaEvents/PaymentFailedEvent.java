@@ -1,4 +1,4 @@
-package com.carebillingservice.kafka.events;
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,12 +13,13 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaymentSucceededEvent {
-    private String eventType = "payment.succeeded";
+public class PaymentFailedEvent {
+    private String eventType = "payment.failed";
     private UUID subscriptionId;
     private UUID invoiceId;
     private UUID providerId;
     private BigDecimal amount;
     private String currency;
+    private String failureReason;
     private LocalDateTime timestamp;
 }

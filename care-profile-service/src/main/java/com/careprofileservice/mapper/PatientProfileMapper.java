@@ -16,6 +16,7 @@ public interface PatientProfileMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
+    @Mapping(target = "email", ignore = true)
     @Mapping(target = "location", expression = "java(createPoint(request.getLatitude(), request.getLongitude()))")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
@@ -28,6 +29,7 @@ public interface PatientProfileMapper {
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "userId", ignore = true)
+    @Mapping(target = "email", ignore = true)
     @Mapping(target = "location", expression = "java(updatePoint(request.getLatitude(), request.getLongitude(), profile.getLocation()))")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

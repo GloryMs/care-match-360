@@ -1,4 +1,4 @@
-package com.carematchservice.kafka.events;
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,5 +1,4 @@
-package com.carenotificationservice.kafka;
-
+package com.carecommon.kafkaEvents;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,9 +12,10 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SubscriptionExpiredEvent {
-    private String eventType;
+public class SubscriptionCreatedEvent {
+    private String eventType = "subscription.created";
     private UUID subscriptionId;
     private UUID providerId;
+    private String tier;
     private LocalDateTime timestamp;
 }

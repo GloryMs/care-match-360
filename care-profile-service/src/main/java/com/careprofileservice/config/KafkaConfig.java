@@ -15,6 +15,9 @@ public class KafkaConfig {
     @Value("${kafka.topics.profile-updated}")
     private String profileUpdatedTopic;
 
+    @Value("${kafka.topics.account-verified}")
+    private String accountVerifiedTopic;
+
     @Bean
     public NewTopic profileCreatedTopic() {
         return TopicBuilder.name(profileCreatedTopic)
@@ -26,6 +29,14 @@ public class KafkaConfig {
     @Bean
     public NewTopic profileUpdatedTopic() {
         return TopicBuilder.name(profileUpdatedTopic)
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic accountVerifiedTopic() {
+        return TopicBuilder.name(accountVerifiedTopic)
                 .partitions(3)
                 .replicas(1)
                 .build();

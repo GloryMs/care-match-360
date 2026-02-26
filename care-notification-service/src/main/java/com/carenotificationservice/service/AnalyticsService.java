@@ -37,23 +37,23 @@ public class AnalyticsService {
     private int retentionDays;
 
     @Transactional
-    public void logEvent(UUID userId, String eventType, Map<String, Object> eventData) {
+    public void logEvent(UUID profileId, String eventType, Map<String, Object> eventData) {
         EventLog eventLog = EventLog.builder()
-                .userId(userId)
+                .profileId(profileId)
                 .eventType(eventType)
                 .eventData(eventData)
                 .timestamp(LocalDateTime.now())
                 .build();
 
         eventLogRepository.save(eventLog);
-        log.debug("Event logged: userId={}, eventType={}", userId, eventType);
+        log.debug("Event logged: profileId={}, eventType={}", profileId, eventType);
     }
 
     @Transactional(readOnly = true)
-    public List<EventLogResponse> getEventLogsForUser(UUID userId, Integer page, Integer size) {
+    public List<EventLogResponse> getEventLogsForProfile(UUID profileId, Integer page, Integer size) {
         Pageable pageable = PageRequest.of(page != null ? page : 0, size != null ? size : 20);
 
-        Page<EventLog> eventLogsPage = eventLogRepository.findByUserIdOrderByTimestampDesc(userId, pageable);
+        Page<EventLog> eventLogsPage = eventLogRepository.findByProfileIdOrderByTimestampDesc(profileId, pageable);
 
         ModelMapper modelMapper = new ModelMapper();
         return eventLogsPage.getContent().stream()

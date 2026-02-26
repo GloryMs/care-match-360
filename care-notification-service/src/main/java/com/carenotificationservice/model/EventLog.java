@@ -1,6 +1,7 @@
 package com.carenotificationservice.model;
 
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
+import com.carenotificationservice.config.InetAddressConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Type;
@@ -22,8 +23,8 @@ public class EventLog {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id")
-    private UUID userId;
+    @Column(name = "profile_id")
+    private UUID profileId;
 
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
@@ -36,6 +37,7 @@ public class EventLog {
     @Builder.Default
     private LocalDateTime timestamp = LocalDateTime.now();
 
+    @Convert(converter = InetAddressConverter.class)
     @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
 
