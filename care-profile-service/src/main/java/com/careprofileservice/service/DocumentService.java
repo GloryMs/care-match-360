@@ -15,14 +15,23 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Orchestrates document metadata persistence and delegates actual file storage
+ * to {@link FileStorageService} (local disk, compressed + AES-256-GCM encrypted).
+ *
+ * The "presignedUrl" field in DocumentResponse now returns the same download URL
+ * as fileUrl — there are no expiring tokens in the standalone implementation.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
-    private final FileStorageService fileStorageService;
-    private final DocumentMapper documentMapper;
+    private final FileStorageService  fileStorageService;
+    private final DocumentMapper      documentMapper;
+
+    // ── Upload ────────────────────────────────────────────────────────────────
 
     @Transactional
     public DocumentResponse uploadDocument(
@@ -31,88 +40,82 @@ public class DocumentService {
             String documentType,
             MultipartFile file) {
 
-        // Determine folder and file type
-        String folder = profileType.name().toLowerCase() + "s/" + profileId;
+        String folder   = profileType.name().toLowerCase() + "s/" + profileId;
         String fileType = determineFileType(documentType);
 
-        // Upload to S3
-        String fileKey = fileStorageService.uploadFile(file, folder, fileType);
-        String fileUrl = fileStorageService.getPublicUrl(fileKey);
+        // Compress + encrypt and persist on local disk
+        String fileKey  = fileStorageService.uploadFile(file, folder, fileType);
+        String fileUrl  = fileStorageService.getPublicUrl(fileKey);
 
-        // Save document metadata
         Document document = Document.builder()
                 .profileId(profileId)
                 .profileType(profileType)
                 .documentType(documentType)
                 .fileName(file.getOriginalFilename())
                 .fileUrl(fileUrl)
+                .fileKey(fileKey)           // new column — see migration note below
                 .fileSize(file.getSize())
                 .mimeType(file.getContentType())
                 .build();
 
-        document = documentRepository.save(document);
-        log.info("Document uploaded: profileId={}, documentId={}, type={}",
-                profileId, document.getId(), documentType);
+        Document saved = documentRepository.save(document);
+        log.info("Document saved: id={}, profileId={}, type={}", saved.getId(), profileId, documentType);
 
-        // Generate presigned URL
-        DocumentResponse response = documentMapper.toResponse(document);
-        response.setPresignedUrl(fileStorageService.generatePresignedUrl(fileKey));
-
+        DocumentResponse response = documentMapper.toResponse(saved);
+        // No presigned URL in standalone mode — reuse the public download URL
+        response.setPresignedUrl(fileUrl);
         return response;
     }
 
-    @Transactional(readOnly = true)
-    public List<DocumentResponse> getDocuments(UUID profileId, Document.ProfileType profileType) {
-        List<Document> documents = documentRepository.findByProfileIdAndProfileType(profileId, profileType);
+    // ── Read ──────────────────────────────────────────────────────────────────
 
-        return documents.stream()
+    public List<DocumentResponse> getDocuments(UUID profileId, Document.ProfileType profileType) {
+        List<Document> docs = documentRepository.findByProfileIdAndProfileType(profileId, profileType);
+        return docs.stream()
                 .map(doc -> {
-                    DocumentResponse response = documentMapper.toResponse(doc);
-                    // Generate presigned URL for each document
-                    String fileKey = extractKeyFromUrl(doc.getFileUrl());
-                    response.setPresignedUrl(fileStorageService.generatePresignedUrl(fileKey));
-                    return response;
+                    DocumentResponse resp = documentMapper.toResponse(doc);
+                    // Download URL is already stored in fileUrl; set presignedUrl = same
+                    resp.setPresignedUrl(doc.getFileUrl());
+                    return resp;
                 })
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
     public DocumentResponse getDocument(UUID documentId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", documentId));
 
         DocumentResponse response = documentMapper.toResponse(document);
-        String fileKey = extractKeyFromUrl(document.getFileUrl());
-        response.setPresignedUrl(fileStorageService.generatePresignedUrl(fileKey));
-
+        response.setPresignedUrl(document.getFileUrl());
         return response;
     }
+
+    // ── Delete ────────────────────────────────────────────────────────────────
 
     @Transactional
     public void deleteDocument(UUID documentId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", "id", documentId));
 
+        // Remove encrypted file from disk (both .gz.enc and .meta sidecar)
+        if (document.getFileKey() != null) {
+            fileStorageService.deleteFile(document.getFileKey());
+        }
+
         documentRepository.delete(document);
-        log.info("Document deleted: documentId={}", documentId);
+        log.info("Document deleted: id={}", documentId);
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String determineFileType(String documentType) {
         return switch (documentType.toLowerCase()) {
-            case "intro_video" -> "video";
-            case "facility_photo", "profile_image" -> "image";
-            case "medical_report", "insurance_document" -> "document";
-            default -> "document";
+            case "intro_video"              -> "video";
+            case "facility_photo",
+                 "profile_image"            -> "image";
+            case "medical_report",
+                 "insurance_document"       -> "document";
+            default                         -> "document";
         };
-    }
-
-    private String extractKeyFromUrl(String url) {
-        // Extract S3 key from full URL
-        // Example: https://bucket.s3.region.amazonaws.com/path/to/file.jpg -> path/to/file.jpg
-        int lastSlashIndex = url.indexOf(".com/");
-        if (lastSlashIndex != -1) {
-            return url.substring(lastSlashIndex + 5);
-        }
-        return url;
     }
 }

@@ -6,6 +6,13 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Persists document metadata.
+ *
+ * fileUrl  – public download URL (built from fileKey)
+ * fileKey  – relative storage key used by FileStorageService (e.g. "patients/<uuid>/file.pdf")
+ *            Needed so we can delete the physical file when the record is removed.
+ */
 @Entity
 @Table(name = "documents", schema = "care_profiles")
 @Getter
@@ -32,8 +39,17 @@ public class Document {
     @Column(name = "file_name", nullable = false, length = 255)
     private String fileName;
 
+    /** Public download URL served by FileDownloadController. */
     @Column(name = "file_url", nullable = false, length = 500)
     private String fileUrl;
+
+    /**
+     * Logical storage key (relative path under base-dir, without .gz.enc suffix).
+     * New column — add via migration:
+     *   ALTER TABLE care_profiles.documents ADD COLUMN file_key VARCHAR(500);
+     */
+    @Column(name = "file_key", length = 500)
+    private String fileKey;
 
     @Column(name = "file_size")
     private Long fileSize;

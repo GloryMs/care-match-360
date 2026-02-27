@@ -128,13 +128,6 @@
             <version>3.2.4</version>
         </dependency>
 
-        <!-- AWS SDK for S3 -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-            <version>2.20.26</version>
-        </dependency>
-
         <!-- Swagger/OpenAPI -->
 <!--        <dependency>-->
 <!--            <groupId>org.springdoc</groupId>-->
