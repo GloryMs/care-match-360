@@ -22,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -42,6 +43,8 @@ public class AuthService {
     private final TwoFactorAuthService twoFactorAuthService;
     private final UserMapper userMapper;
     private final IdentityEventProducer identityEventProducer;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Value("${jwt.access-token.expiration}")
     private long accessTokenExpiration;
@@ -68,18 +71,19 @@ public class AuthService {
         user = userRepository.save(user);
         log.info("User registered: {}", user.getEmail());
 
-        // Create verification token
-        String token = UUID.randomUUID().toString();
+        // Generate 6-digit verification code (expires in 15 minutes)
+        String code = generateVerificationCode();
+        log.info("Verification code generated for user: {}, v-cod: {}", user.getEmail(), code);
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .user(user)
-                .token(token)
-                .expiresAt(LocalDateTime.now().plusHours(24))
+                .token(code)
+                .expiresAt(LocalDateTime.now().plusMinutes(15))
                 .build();
-        
+
         verificationTokenRepository.save(verificationToken);
 
-        // Send verification email
-        emailService.sendVerificationEmail(user.getEmail(), token);
+        // Send verification email with the code
+        emailService.sendVerificationEmail(user.getEmail(), code);
 
         UserResponse response = userMapper.toUserResponse(user);
         response.setTwoFactorEnabled(false);
@@ -195,24 +199,23 @@ public class AuthService {
     }
 
     @Transactional
-    public void verifyEmail(String email, String token) {
-        EmailVerificationToken verificationToken = verificationTokenRepository.findByToken(token)
-                .orElseThrow(() -> new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Invalid verification token"));
+    public void verifyEmail(String email, String code) {
+        // Look up user first, then match the code — prevents code collisions across users
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ValidationException(ErrorCodes.INVALID_CREDENTIALS, "Invalid email or verification code"));
 
-        if (!verificationToken.getUser().getEmail().equals(email)) {
-            throw new ValidationException(ErrorCodes.INVALID_CREDENTIALS, "Provided token does not match provided email address");
-        }
+        EmailVerificationToken verificationToken = verificationTokenRepository.findByUserAndToken(user, code)
+                .orElseThrow(() -> new ValidationException(ErrorCodes.INVALID_CREDENTIALS, "Invalid verification code"));
 
         if (verificationToken.isExpired()) {
-            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Verification token has expired");
+            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Verification code has expired. Please request a new one.");
         }
 
         if (verificationToken.isUsed()) {
-            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Verification token has already been used");
+            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Verification code has already been used");
         }
 
         // Mark user as verified
-        User user = verificationToken.getUser();
         user.setIsVerified(true);
         userRepository.save(user);
 
@@ -237,41 +240,48 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
-        // Generate reset token
-        String token = UUID.randomUUID().toString();
+        // Delete any existing reset codes for this user
+        resetTokenRepository.deleteByUser(user);
+
+        // Generate 6-digit reset code (expires in 15 minutes)
+        String code = generateVerificationCode();
+        log.info("Verification code generated for user: {}, v-cod: {}", user.getEmail(), code);
         PasswordResetToken resetToken = PasswordResetToken.builder()
                 .user(user)
-                .token(token)
-                .expiresAt(LocalDateTime.now().plusHours(1))
+                .token(code)
+                .expiresAt(LocalDateTime.now().plusMinutes(15))
                 .build();
-        
+
         resetTokenRepository.save(resetToken);
 
-        // Send reset email
-        emailService.sendPasswordResetEmail(user.getEmail(), token);
+        // Send reset email with the code
+        emailService.sendPasswordResetEmail(user.getEmail(), code);
 
-        log.info("Password reset requested for user: {}", user.getEmail());
+        log.info("Password reset code sent to user: {}", user.getEmail());
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        PasswordResetToken resetToken = resetTokenRepository.findByToken(request.getToken())
-                .orElseThrow(() -> new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Invalid reset token"));
+        // Look up user first, then match the code — prevents collisions across users
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new ValidationException(ErrorCodes.INVALID_CREDENTIALS, "Invalid email or reset code"));
+
+        PasswordResetToken resetToken = resetTokenRepository.findByUserAndToken(user, request.getCode())
+                .orElseThrow(() -> new ValidationException(ErrorCodes.INVALID_CREDENTIALS, "Invalid reset code"));
 
         if (resetToken.isExpired()) {
-            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Reset token has expired");
+            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Reset code has expired. Please request a new one.");
         }
 
         if (resetToken.isUsed()) {
-            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Reset token has already been used");
+            throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Reset code has already been used");
         }
 
         // Update password
-        User user = resetToken.getUser();
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
-        // Mark token as used
+        // Mark code as used
         resetToken.setUsedAt(LocalDateTime.now());
         resetTokenRepository.save(resetToken);
 
@@ -310,22 +320,28 @@ public class AuthService {
             throw new ValidationException(ErrorCodes.EMAIL_ALREADY_EXISTS, "Email is already verified");
         }
 
-        // Delete old tokens
+        // Delete old codes
         verificationTokenRepository.deleteByUser(user);
 
-        // Create new token
-        String token = UUID.randomUUID().toString();
+        // Generate new 6-digit code (expires in 15 minutes)
+        String code = generateVerificationCode();
+        log.info("Verification code generated for user: {}, v-cod: {}", user.getEmail(), code);
         EmailVerificationToken verificationToken = EmailVerificationToken.builder()
                 .user(user)
-                .token(token)
-                .expiresAt(LocalDateTime.now().plusHours(24))
+                .token(code)
+                .expiresAt(LocalDateTime.now().plusMinutes(15))
                 .build();
-        
+
         verificationTokenRepository.save(verificationToken);
 
-        // Send email
-        emailService.sendVerificationEmail(user.getEmail(), token);
+        // Send email with new code
+        emailService.sendVerificationEmail(user.getEmail(), code);
 
         log.info("Verification email resent to: {}", user.getEmail());
+    }
+
+    /** Generates a cryptographically random 6-digit numeric code (000000–999999). */
+    private String generateVerificationCode() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
 }

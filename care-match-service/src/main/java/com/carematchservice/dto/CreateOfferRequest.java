@@ -23,4 +23,8 @@ public class CreateOfferRequest {
     private String message;
 
     private Map<String, Object> availabilityDetails;
+
+    /** Optional: UUID of the CareRequest this offer is responding to.
+     *  When provided, the service will auto-mark that CareRequest as ACCEPTED. */
+    private UUID careRequestId;
 }

@@ -89,6 +89,15 @@ public class ProviderProfile extends BaseEntity {
     @Builder.Default
     private Boolean isVisible = true;
 
+    @Type(JsonBinaryType.class)
+    @Column(name = "accepted_care_levels", columnDefinition = "jsonb")
+    private List<Integer> acceptedCareLevels;
+
+    @Type(JsonBinaryType.class)
+    @Column(name = "lifestyle_options", columnDefinition = "jsonb")
+    private Map<String, Object> lifestyleOptions;
+
+
     public enum ProviderType {
         RESIDENTIAL,
         AMBULATORY;

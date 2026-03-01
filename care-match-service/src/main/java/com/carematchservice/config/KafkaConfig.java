@@ -38,6 +38,19 @@ public class KafkaConfig {
     @Value("${kafka.topics.offer-rejected}")
     private String offerRejectedTopic;
 
+    @Value("${kafka.topics.care-request-submitted}")
+    private String careRequestSubmittedTopic;
+
+    @Value("${kafka.topics.care-request-declined}")
+    private String careRequestDeclinedTopic;
+
+    @Bean public NewTopic careRequestSubmittedTopic() {
+        return TopicBuilder.name(careRequestSubmittedTopic).partitions(3).replicas(1).build();
+    }
+    @Bean public NewTopic careRequestDeclinedTopic() {
+        return TopicBuilder.name(careRequestDeclinedTopic).partitions(3).replicas(1).build();
+    }
+
     @Bean
     public NewTopic matchCalculatedTopic() {
         return TopicBuilder.name(matchCalculatedTopic).partitions(3).replicas(1).build();

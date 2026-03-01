@@ -18,6 +18,9 @@
 7. [Care Profile Service — Port 8002](#7-care-profile-service--port-8002)
     - [Patient Profile Endpoints](#71-patient-profile-endpoints)
     - [Provider Profile Endpoints](#72-provider-profile-endpoints)
+        - [Public Provider Directory](#get-providers)
+        - [Public Provider Detail](#get-providersprovideridpublic)
+        - [Provider Media List](#get-providersprovideridmedia)
 8. [Care Match Service — Port 8003](#8-care-match-service--port-8003)
     - [Match Endpoints](#81-match-endpoints)
     - [Offer Endpoints](#82-offer-endpoints)
@@ -314,19 +317,21 @@ Invalidate the current session.
 
 #### `POST /auth/verify-email`
 
-Verify the user's email address using the token sent by email.
+Verify the user's email address using the **6-digit code** sent by email. Code expires in **15 minutes**.
 
 > **Auto-profile creation:** On successful verification, the backend automatically creates a basic profile (`PatientProfile` or `ProviderProfile`) based on the user's role. The profile is created with only `userId` and `email` populated — all other fields are `null`. **After verification, redirect the user to the "complete your profile" page which calls `PUT /patients` or `PUT /providers` to fill in the remaining details. Do NOT call `POST /patients` / `POST /providers` — those will return a validation error because the profile already exists.**
 
 **Request Body**
 
-| Field | Type | Required |
-|---|---|---|
-| `token` | `string` | Yes |
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `email` | `string` | Yes | Valid email format |
+| `code` | `string` | Yes | Exactly 6 digits |
 
 ```json
 {
-  "token": "abc123verificationtoken"
+  "email": "user@example.com",
+  "code": "382910"
 }
 ```
 
@@ -336,13 +341,13 @@ Verify the user's email address using the token sent by email.
 
 #### `POST /auth/resend-verification`
 
-Resend the email verification link.
+Resend the email verification code. Invalidates the previous code and issues a new one (expires in 15 minutes).
 
 **Request Body**
 
-| Field | Type | Required |
-|---|---|---|
-| `email` | `string` | Yes |
+| Field | Type | Required | Validation |
+|---|---|---|---|
+| `email` | `string` | Yes | Valid email format |
 
 ```json
 {
@@ -356,7 +361,7 @@ Resend the email verification link.
 
 #### `POST /auth/forgot-password`
 
-Request a password reset email.
+Send a **6-digit password reset code** to the user's email. Code expires in **15 minutes**. Any previously issued code for the same user is invalidated.
 
 **Request Body**
 
@@ -376,18 +381,20 @@ Request a password reset email.
 
 #### `POST /auth/reset-password`
 
-Reset the password using the token from the reset email.
+Reset the password using the 6-digit code received by email.
 
 **Request Body**
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `token` | `string` | Yes | |
+| `email` | `string` | Yes | Valid email format |
+| `code` | `string` | Yes | Exactly 6 digits |
 | `newPassword` | `string` | Yes | 8–100 characters |
 
 ```json
 {
-  "token": "abc123resettoken",
+  "email": "user@example.com",
+  "code": "748291",
   "newPassword": "NewSecurePass123"
 }
 ```
@@ -925,6 +932,11 @@ Create a new provider profile for the authenticated user.
     "staffToPatientRatio": 0.5,
     "availability": { "monday": "08:00-20:00" },
     "qualityIndicators": { "averageRating": 4.5 },
+    "acceptedCareLevels": [2, 3, 4],
+    "lifestyleOptions": {
+      "petsAllowed": false,
+      "smokingAllowed": false
+    },
     "introVideoUrl": null,
     "images": [],
     "isVisible": true,
@@ -963,6 +975,8 @@ Update the provider profile of the authenticated user. All fields are optional.
 | `staffToPatientRatio` | `number` |
 | `availability` | `object` |
 | `qualityIndicators` | `object` |
+| `acceptedCareLevels` | `integer[]` | Care level numbers this provider supports (e.g. `[2, 3, 4]`) |
+| `lifestyleOptions` | `object` | Lifestyle accommodations (e.g. pets, smoking, dietary) |
 | `isVisible` | `boolean` |
 
 **Response** — `ApiResponse<ProviderProfileResponse>` _(same shape as create)_
@@ -1062,19 +1076,163 @@ Delete the provider profile of the authenticated user.
 
 ---
 
+#### `GET /providers`
+
+Public paginated provider directory. **No authentication required** — accessible by patients, relatives, and unauthenticated browsers.
+
+**Query Parameters**
+
+| Parameter | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `type` | `string` | No | | Filter by provider type: `RESIDENTIAL` or `AMBULATORY` |
+| `region` | `string` | No | | Case-insensitive substring match on address/region |
+| `careLevel` | `integer` | No | | Filter providers that accept this care level (1–5) |
+| `page` | `integer` | No | `0` | |
+| `size` | `integer` | No | `20` | Capped at **50** |
+
+**Response** — `ApiResponse<Page<ProviderSummaryResponse>>`
+
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "facilityName": "Sonnenschein Pflegeheim",
+        "providerType": "RESIDENTIAL",
+        "address": "Musterstraße 1, 80331 Munich",
+        "latitude": 48.1351,
+        "longitude": 11.5820,
+        "minCareLevel": 2,
+        "maxCareLevel": 4,
+        "specializations": ["DEMENTIA_CARE", "PALLIATIVE_CARE"],
+        "primaryImageUrl": "http://localhost:8002/api/v1/files/download/...",
+        "mediaCount": 5,
+        "isVisible": true
+      }
+    ],
+    "totalElements": 42,
+    "totalPages": 3,
+    "number": 0,
+    "size": 20
+  },
+  "message": "OK",
+  "timestamp": "2026-02-22T10:00:00"
+}
+```
+
+---
+
+#### `GET /providers/{providerId}/public`
+
+Full public provider detail with facility media. **No authentication required.**
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `providerId` | `UUID` |
+
+**Response** — `ApiResponse<ProviderPublicDetailResponse>`
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "facilityName": "Sonnenschein Pflegeheim",
+    "providerType": "RESIDENTIAL",
+    "email": "contact@sonnenschein.de",
+    "address": "Musterstraße 1, 80331 Munich",
+    "latitude": 48.1351,
+    "longitude": 11.5820,
+    "capacity": 80,
+    "availableRooms": 5,
+    "roomTypes": { "SINGLE": 3, "DOUBLE": 2 },
+    "serviceRadius": null,
+    "maxDailyPatients": null,
+    "specializations": ["DEMENTIA_CARE", "PALLIATIVE_CARE"],
+    "staffCount": 40,
+    "staffToPatientRatio": 0.5,
+    "availability": { "monday": "08:00-20:00" },
+    "qualityIndicators": { "averageRating": 4.5 },
+    "lifestyleOptions": { "petsAllowed": false, "smokingAllowed": false },
+    "acceptedCareLevels": [2, 3, 4],
+    "facilityMedia": [
+      {
+        "id": "doc-uuid-001",
+        "profileId": "550e8400-e29b-41d4-a716-446655440002",
+        "profileType": "PROVIDER",
+        "documentType": "FACILITY_MEDIA",
+        "fileName": "entrance.jpg",
+        "fileUrl": "http://localhost:8002/api/v1/files/download/...",
+        "presignedUrl": "http://localhost:8002/api/v1/files/download/...",
+        "fileSize": 512000,
+        "mimeType": "image/jpeg",
+        "uploadedAt": "2026-02-22T10:00:00"
+      }
+    ],
+    "isVisible": true
+  },
+  "message": "OK",
+  "timestamp": "2026-02-22T10:00:00"
+}
+```
+
+---
+
+#### `GET /providers/{providerId}/media`
+
+Returns only `FACILITY_MEDIA` documents for a provider. **No authentication required.**
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `providerId` | `UUID` |
+
+**Response** — `ApiResponse<List<DocumentResponse>>`
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "doc-uuid-001",
+      "profileId": "550e8400-e29b-41d4-a716-446655440002",
+      "profileType": "PROVIDER",
+      "documentType": "FACILITY_MEDIA",
+      "fileName": "entrance.jpg",
+      "fileUrl": "http://localhost:8002/api/v1/files/download/...",
+      "presignedUrl": "http://localhost:8002/api/v1/files/download/...",
+      "fileSize": 512000,
+      "mimeType": "image/jpeg",
+      "uploadedAt": "2026-02-22T10:00:00"
+    }
+  ],
+  "message": "OK",
+  "timestamp": "2026-02-22T10:00:00"
+}
+```
+
+---
+
 #### `POST /providers/documents`
 
 Upload a document to the provider profile.
+
+> **FACILITY_MEDIA cap:** When `documentType` is `FACILITY_MEDIA`, a maximum of **10 attachments** is enforced and each file must be **≤ 5 MB**. Uploading an 11th will return `400 Bad Request`. Other document types follow the general max-file-size limit (10 MB).
 
 **Headers** — `X-User-Id` required
 **Content-Type** — `multipart/form-data`
 
 **Form Fields**
 
-| Field | Type | Required |
-|---|---|---|
-| `file` | `file` | Yes |
-| `documentType` | `string` | Yes |
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `file` | `file` | Yes | |
+| `documentType` | `string` | Yes | Use `FACILITY_MEDIA` for facility images/videos |
 
 **Response** — `ApiResponse<DocumentResponse>` _(same shape as patient document)_
 

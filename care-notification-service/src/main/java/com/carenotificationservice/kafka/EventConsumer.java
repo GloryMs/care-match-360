@@ -127,4 +127,33 @@ public class EventConsumer {
         // Log event
         analyticsService.logEvent(event.getProviderId(), "subscription.expired", null);
     }
+
+    @KafkaListener(
+            topics = "${kafka.topics.care-request-submitted}",
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handleCareRequestSubmitted(
+            @Payload CareRequestSubmittedEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+
+        log.info("Processing care request submitted event: requestId={}", event.getRequestId());
+        notificationService.sendCareRequestSubmittedNotification(event);
+        analyticsService.logEvent(event.getProviderId(), "care-request.submitted", null);
+    }
+
+
+    @KafkaListener(
+            topics = "${kafka.topics.care-request-declined}",
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handleCareRequestDeclined(
+            @Payload CareRequestDeclinedEvent event,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+
+        log.info("Processing care request declined event: requestId={}", event.getRequestId());
+        notificationService.sendCareRequestDeclinedNotification(event);
+        analyticsService.logEvent(event.getPatientId(), "care-request.declined", null);
+    }
 }

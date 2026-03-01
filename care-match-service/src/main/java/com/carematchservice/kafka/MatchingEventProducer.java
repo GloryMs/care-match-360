@@ -1,9 +1,6 @@
 package com.carematchservice.kafka;
 
-import com.carecommon.kafkaEvents.MatchCalculatedEvent;
-import com.carecommon.kafkaEvents.OfferAcceptedEvent;
-import com.carecommon.kafkaEvents.OfferRejectedEvent;
-import com.carecommon.kafkaEvents.OfferSentEvent;
+import com.carecommon.kafkaEvents.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +28,12 @@ public class MatchingEventProducer {
 
     @Value("${kafka.topics.offer-rejected}")
     private String offerRejectedTopic;
+
+    @Value("${kafka.topics.care-request-submitted}")
+    private String careRequestSubmittedTopic;
+
+    @Value("${kafka.topics.care-request-declined}")
+    private String careRequestDeclinedTopic;
 
     public void sendMatchCalculatedEvent(MatchCalculatedEvent event) {
         CompletableFuture<SendResult<String, Object>> future =
@@ -84,5 +87,23 @@ public class MatchingEventProducer {
                 log.error("Failed to send offer rejected event: offerId={}", event.getOfferId(), ex);
             }
         });
+    }
+
+    public void sendCareRequestSubmittedEvent(CareRequestSubmittedEvent event) {
+        try {
+            kafkaTemplate.send(careRequestSubmittedTopic, event.getRequestId().toString(), event);
+            log.info("Published CareRequestSubmittedEvent: requestId={}", event.getRequestId());
+        } catch (Exception e) {
+            log.error("Failed to publish CareRequestSubmittedEvent", e);
+        }
+    }
+
+    public void sendCareRequestDeclinedEvent(CareRequestDeclinedEvent event) {
+        try {
+            kafkaTemplate.send(careRequestDeclinedTopic, event.getRequestId().toString(), event);
+            log.info("Published CareRequestDeclinedEvent: requestId={}", event.getRequestId());
+        } catch (Exception e) {
+            log.error("Failed to publish CareRequestDeclinedEvent", e);
+        }
     }
 }

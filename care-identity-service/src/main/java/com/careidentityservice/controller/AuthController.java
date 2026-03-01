@@ -54,18 +54,17 @@ public class AuthController {
     }
 
     @PostMapping("/verify-email")
-    @Operation(summary = "Verify email address")
-    public ResponseEntity<ApiResponse<Void>> verifyEmail(@RequestParam String email,
-                                                         @RequestParam String token) {
-        authService.verifyEmail(email, token);
+    @Operation(summary = "Verify email address using 6-digit code")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.getEmail(), request.getCode());
         return ResponseEntity.ok(ApiResponse.success(null, "Email verified successfully"));
     }
 
     @PostMapping("/resend-verification")
-    @Operation(summary = "Resend verification email")
-    public ResponseEntity<ApiResponse<Void>> resendVerification(@RequestParam String email) {
-        authService.resendVerificationEmail(email);
-        return ResponseEntity.ok(ApiResponse.success(null, "Verification email sent"));
+    @Operation(summary = "Resend verification code")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerificationEmail(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.success(null, "Verification code sent"));
     }
 
     @PostMapping("/forgot-password")

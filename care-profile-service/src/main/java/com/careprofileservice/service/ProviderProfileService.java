@@ -6,8 +6,10 @@ import com.carecommon.kafkaEvents.ProfileUpdatedEvent;
 import com.careprofileservice.dto.*;
 import com.careprofileservice.kafka.ProfileEventProducer;
 import com.careprofileservice.mapper.ProviderProfileMapper;
+import com.careprofileservice.model.Document;
 import com.careprofileservice.model.ProviderProfile;
 import com.careprofileservice.model.SearchHistory;
+import com.careprofileservice.repository.DocumentRepository;
 import com.careprofileservice.repository.ProviderProfileRepository;
 import com.careprofileservice.repository.SearchHistoryRepository;
 import jakarta.validation.ValidationException;
@@ -16,9 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +35,7 @@ public class ProviderProfileService {
     private final SearchHistoryRepository searchHistoryRepository;
     private final ProviderProfileMapper providerProfileMapper;
     private final ProfileEventProducer profileEventProducer;
+    private final DocumentRepository documentRepository;
 
     @Transactional
     public void createBasicProfile(UUID userId, String email, ProviderProfile.ProviderType providerType) {
@@ -305,4 +306,137 @@ public class ProviderProfileService {
 
         return changes;
     }
+
+    // ── NEW: Public paginated directory (Requirement 1) ──────────────────────
+
+    /**
+     * Returns a paginated, filterable list of visible providers for the public directory.
+     *
+     * Filters (all optional):
+     *   type      — RESIDENTIAL | AMBULATORY
+     *   region    — case-insensitive contains match on address/region
+     *   careLevel — provider must support this care level (check acceptedCareLevels JSON array)
+     */
+    public Page<ProviderSummaryResponse> listProviders(
+            String type, String region, Integer careLevel, int page, int size) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("facilityName").ascending());
+
+        // Fetch all visible providers (existing query already exists in repo)
+        // For production scale this should use a proper JPQL/Specification query.
+        // For now, we load visible ones and apply in-memory filters (acceptable for
+        // current dataset size; upgrade to Specification when needed).
+        List<ProviderProfile> all = providerProfileRepository.findByIsVisibleTrue();
+
+        List<ProviderProfile> filtered = all.stream()
+                .filter(p -> type == null ||
+                        p.getProviderType().name().equalsIgnoreCase(type))
+                .filter(p -> region == null ||
+                        (p.getAddress() != null &&
+                                p.getAddress().toLowerCase().contains(region.toLowerCase())))
+                .filter(p -> {
+                    if (careLevel == null) return true;
+                    if (p.getAcceptedCareLevels() == null) return false;
+                    return p.getAcceptedCareLevels().contains(careLevel);
+                })
+                .toList();
+
+        // Manual pagination
+        int start = (int) pageable.getOffset();
+        int end   = Math.min(start + pageable.getPageSize(), filtered.size());
+        List<ProviderProfile> pageContent = (start >= filtered.size())
+                ? List.of()
+                : filtered.subList(start, end);
+
+        // Map to summary DTO, injecting primary image URL and media count
+        List<ProviderSummaryResponse> summaries = pageContent.stream()
+                .map(this::toSummaryResponse)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(summaries, pageable, filtered.size());
+    }
+
+    private ProviderSummaryResponse toSummaryResponse(ProviderProfile p) {
+        // Fetch first FACILITY_MEDIA doc for thumbnail
+        List<Document> media = documentRepository.findByProfileIdAndProfileTypeAndDocumentType(
+                p.getId(), Document.ProfileType.PROVIDER, "FACILITY_MEDIA");
+
+        String primaryImage = media.isEmpty() ? null : media.get(0).getFileUrl();
+
+        // Derive min/max care levels from acceptedCareLevels list
+        Integer minLevel = null, maxLevel = null;
+        if (p.getAcceptedCareLevels() != null && !p.getAcceptedCareLevels().isEmpty()) {
+            minLevel = p.getAcceptedCareLevels().stream().min(Integer::compare).orElse(null);
+            maxLevel = p.getAcceptedCareLevels().stream().max(Integer::compare).orElse(null);
+        }
+
+        return ProviderSummaryResponse.builder()
+                .id(p.getId())
+                .facilityName(p.getFacilityName())
+                .providerType(p.getProviderType().name())
+                .address(p.getAddress())
+                .latitude(p.getLocation() != null ? p.getLocation().getY() : null)
+                .longitude(p.getLocation() != null ? p.getLocation().getX() : null)
+                .specializations(p.getSpecializations())
+                .minCareLevel(minLevel)
+                .maxCareLevel(maxLevel)
+                .primaryImageUrl(primaryImage)
+                .mediaCount(media.size())
+                .isVisible(Boolean.TRUE.equals(p.getIsVisible()))
+                .build();
+    }
+
+    // ── NEW: Full public detail with media (Requirement 2) ───────────────────
+
+    /**
+     * Returns the full public provider profile enriched with facility media.
+     */
+    public ProviderPublicDetailResponse getPublicDetail(UUID providerId) {
+        ProviderProfile p = providerProfileRepository.findById(providerId)
+                .orElseThrow(() -> new com.carecommon.exception.ResourceNotFoundException(
+                        "Provider profile", "id", providerId));
+
+        List<Document> mediaEntities = documentRepository.findByProfileIdAndProfileTypeAndDocumentType(
+                p.getId(), Document.ProfileType.PROVIDER, "FACILITY_MEDIA");
+
+        List<DocumentResponse> mediaResponses = mediaEntities.stream()
+                .map(d -> DocumentResponse.builder()
+                        .id(d.getId())
+                        .profileId(d.getProfileId())
+                        .profileType(d.getProfileType().name())
+                        .documentType(d.getDocumentType())
+                        .fileName(d.getFileName())
+                        .fileUrl(d.getFileUrl())
+                        .presignedUrl(d.getFileUrl())
+                        .fileSize(d.getFileSize())
+                        .mimeType(d.getMimeType())
+                        .uploadedAt(d.getUploadedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        return ProviderPublicDetailResponse.builder()
+                .id(p.getId())
+                .facilityName(p.getFacilityName())
+                .providerType(p.getProviderType().name())
+                .email(p.getEmail())
+                .address(p.getAddress())
+                .latitude(p.getLocation() != null ? p.getLocation().getY() : null)
+                .longitude(p.getLocation() != null ? p.getLocation().getX() : null)
+                .capacity(p.getCapacity())
+                .availableRooms(p.getAvailableRooms())
+                .roomTypes(p.getRoomTypes())
+                .serviceRadius(p.getServiceRadius())
+                .maxDailyPatients(p.getMaxDailyPatients())
+                .specializations(p.getSpecializations())
+                .staffCount(p.getStaffCount())
+                .staffToPatientRatio(p.getStaffToPatientRatio())
+                .availability(p.getAvailability())
+                .qualityIndicators(p.getQualityIndicators())
+                .lifestyleOptions(p.getLifestyleOptions())
+                .acceptedCareLevels(p.getAcceptedCareLevels())
+                .facilityMedia(mediaResponses)
+                .isVisible(Boolean.TRUE.equals(p.getIsVisible()))
+                .build();
+    }
+
 }

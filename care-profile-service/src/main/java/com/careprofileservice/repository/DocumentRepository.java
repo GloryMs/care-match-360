@@ -16,4 +16,16 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     List<Document> findByProfileId(UUID profileId);
 
     void deleteByProfileId(UUID profileId);
+
+    // NEW — used for getFacilityMedia()
+    List<Document> findByProfileIdAndProfileTypeAndDocumentType(
+            UUID profileId,
+            Document.ProfileType profileType,
+            String documentType);
+
+    // NEW — used for 10-attachment cap check
+    long countByProfileIdAndProfileTypeAndDocumentType(
+            UUID profileId,
+            Document.ProfileType profileType,
+            String documentType);
 }

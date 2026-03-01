@@ -2,6 +2,7 @@ package com.carebillingservice.controller;
 
 import com.carebillingservice.dto.CreateSubscriptionRequest;
 import com.carebillingservice.dto.SubscriptionResponse;
+import com.carebillingservice.dto.SubscriptionStatusDTO;
 import com.carebillingservice.dto.UpdateSubscriptionRequest;
 import com.carebillingservice.service.SubscriptionService;
 import com.carecommon.dto.ApiResponse;
@@ -33,6 +34,20 @@ public class SubscriptionController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success(subscription, "Subscription created successfully"));
+    }
+
+    /**
+     * GET /api/v1/subscriptions/provider/{providerId}/status
+     * Lightweight subscription status check used by care-match-service
+     * to gate offer creation/sending (Requirement 6).
+     * Returns isActive=true when subscription status is ACTIVE or TRIALING.
+     */
+    @GetMapping("/provider/{providerId}/status")
+    public ResponseEntity<ApiResponse<SubscriptionStatusDTO>> getProviderSubscriptionStatus(
+            @PathVariable UUID providerId) {
+
+        SubscriptionStatusDTO status = subscriptionService.getProviderSubscriptionStatus(providerId);
+        return ResponseEntity.ok(ApiResponse.success(status));
     }
 
     @PutMapping("/{subscriptionId}")

@@ -1,9 +1,12 @@
 package com.carematchservice.service;
 
+import com.carecommon.dto.ApiResponse;
 import com.carecommon.exception.ResourceNotFoundException;
 import com.carematchservice.dto.CreateOfferRequest;
 import com.carematchservice.dto.OfferHistoryResponse;
 import com.carematchservice.dto.OfferResponse;
+import com.carematchservice.dto.SubscriptionStatusDTO;
+import com.carematchservice.feign.BillingServiceClient;
 import com.carematchservice.kafka.MatchingEventProducer;
 import com.carecommon.kafkaEvents.OfferAcceptedEvent;
 import com.carecommon.kafkaEvents.OfferRejectedEvent;
@@ -43,6 +46,8 @@ public class OfferService {
     private final OfferMapper offerMapper;
     private final OfferHistoryMapper offerHistoryMapper;
     private final MatchingEventProducer matchingEventProducer;
+    private final BillingServiceClient billingServiceClient;
+    private final CareRequestService   careRequestService;
 
     @Value("${app.offer.expiration-days}")
     private int offerExpirationDays;
@@ -51,6 +56,7 @@ public class OfferService {
     public OfferResponse createOffer(UUID providerId, CreateOfferRequest request) {
         log.info("Creating offer: providerId={}, patientId={}", providerId, request.getPatientId());
 
+        checkSubscription(providerId);
         // Check if match exists
         MatchScore matchScore = matchScoreRepository.findByPatientIdAndProviderId(
                 request.getPatientId(), providerId
@@ -64,6 +70,11 @@ public class OfferService {
         offer.setExpiresAt(LocalDateTime.now().plusDays(offerExpirationDays));
 
         offer = offerRepository.save(offer);
+
+        if (request.getCareRequestId() != null) {
+            careRequestService.linkOfferToRequest(request.getCareRequestId(), offer.getId());
+        }
+
         log.info("Offer created: offerId={}", offer.getId());
 
         // Record history
@@ -81,6 +92,8 @@ public class OfferService {
     public OfferResponse sendOffer(UUID offerId, UUID providerId) {
         Offer offer = offerRepository.findById(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer", "id", offerId));
+
+        checkSubscription(providerId);
 
         // Validate provider owns this offer
         if (!offer.getProviderId().equals(providerId)) {
@@ -114,6 +127,24 @@ public class OfferService {
         matchingEventProducer.sendOfferSentEvent(event);
 
         return offerMapper.toResponse(offer);
+    }
+
+    private void checkSubscription(UUID providerId) {
+        try {
+            ApiResponse<SubscriptionStatusDTO> resp =
+                    billingServiceClient.getProviderSubscriptionStatus(providerId);
+            if (resp == null || resp.getData() == null || !resp.getData().isActive()) {
+                throw new ValidationException(
+                        "An active subscription is required to create or send offers. " +
+                                "Please subscribe or renew your plan.");
+            }
+        } catch (ValidationException ve) {
+            throw ve;   // re-throw our own
+        } catch (Exception e) {
+            // If billing service is unreachable, fail open with a warning (configurable behaviour)
+            log.warn("Could not verify subscription for provider {}. Allowing offer creation. Error: {}",
+                    providerId, e.getMessage());
+        }
     }
 
     @Transactional

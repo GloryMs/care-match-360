@@ -255,6 +255,73 @@ public class NotificationService {
     }
 
     @Transactional
+    public void sendCareRequestSubmittedNotification(CareRequestSubmittedEvent event) {
+        try {
+            // Resolve the PROVIDER's email to notify them of the new inquiry
+            String email = resolveEmailByProviderProfileId(event.getProviderId());
+
+            String subject = "New Care Inquiry Received";
+            String body = String.format(
+                    "A patient has expressed interest in your facility and is requesting care. " +
+                            "Log in to your CareMatch360 dashboard to review the request and respond.%s",
+                    event.getPatientMessage() != null && !event.getPatientMessage().isBlank()
+                            ? "\n\nPatient's note: \"" + event.getPatientMessage() + "\""
+                            : ""
+            );
+
+            SendNotificationRequest req = SendNotificationRequest.builder()
+                    .recipientId(event.getProviderId())
+                    .recipientEmail(email)
+                    .type("EMAIL")
+                    .channel("care_request_received")
+                    .subject(subject)
+                    .body(body)
+                    .build();
+
+            sendNotification(req);
+        } catch (Exception e) {
+            log.error("Failed to send care request submitted notification: requestId={}",
+                    event.getRequestId(), e);
+        }
+    }
+
+
+    @Transactional
+    public void sendCareRequestDeclinedNotification(CareRequestDeclinedEvent event) {
+        try {
+            // Resolve the PATIENT's email to notify them of the decline
+            String email = resolveEmailByPatientProfileId(event.getPatientId());
+
+            String providerName = event.getProviderName() != null
+                    ? event.getProviderName() : "The care provider";
+
+            String subject = "Update on Your Care Request";
+            String body = String.format(
+                    "%s is unable to accommodate your care request at this time.%s" +
+                            "\n\nWe encourage you to browse other providers on the CareMatch360 platform.",
+                    providerName,
+                    event.getDeclineReason() != null && !event.getDeclineReason().isBlank()
+                            ? " Their message: \"" + event.getDeclineReason() + "\""
+                            : ""
+            );
+
+            SendNotificationRequest req = SendNotificationRequest.builder()
+                    .recipientId(event.getPatientId())
+                    .recipientEmail(email)
+                    .type("EMAIL")
+                    .channel("care_request_declined")
+                    .subject(subject)
+                    .body(body)
+                    .build();
+
+            sendNotification(req);
+        } catch (Exception e) {
+            log.error("Failed to send care request declined notification: requestId={}",
+                    event.getRequestId(), e);
+        }
+    }
+
+    @Transactional
     @Scheduled(cron = "0 */15 * * * ?") // Every 15 minutes
     public void retryFailedNotifications() {
         log.info("Retrying failed notifications");

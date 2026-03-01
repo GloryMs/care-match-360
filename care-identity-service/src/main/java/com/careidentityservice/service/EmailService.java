@@ -36,53 +36,37 @@ public class EmailService {
     }
 
     @Async
-    public void sendVerificationEmail(String to, String token) {
-        String verificationUrl = getVerificationUrl(token);
-        String subject = "CareMatch360 - Verify Your Email";
+    public void sendVerificationEmail(String to, String code) {
+        String subject = "CareMatch360 - Your Verification Code";
         String text = String.format(
                 "Welcome to CareMatch360!\n\n" +
-                "Please click the link below to verify your email address:\n\n" +
-                "%s\n\n" +
-                "This link will expire in 24 hours.\n\n" +
+                "Please use the verification code below to confirm your email address:\n\n" +
+                "    %s\n\n" +
+                "This code will expire in 15 minutes.\n\n" +
                 "If you didn't create an account with CareMatch360, please ignore this email.\n\n" +
                 "Best regards,\n" +
                 "CareMatch360 Team",
-                verificationUrl
+                code
         );
-        
+
         sendEmail(to, subject, text);
     }
 
     @Async
-    public void sendPasswordResetEmail(String to, String token) {
-        String resetUrl = getPasswordResetUrl(token);
-        String subject = "CareMatch360 - Password Reset Request";
+    public void sendPasswordResetEmail(String to, String code) {
+        String subject = "CareMatch360 - Your Password Reset Code";
         String text = String.format(
                 "Hello,\n\n" +
                 "We received a request to reset your password.\n\n" +
-                "Please click the link below to reset your password:\n\n" +
-                "%s\n\n" +
-                "This link will expire in 1 hour.\n\n" +
+                "Please use the code below to reset your password:\n\n" +
+                "    %s\n\n" +
+                "This code will expire in 15 minutes.\n\n" +
                 "If you didn't request a password reset, please ignore this email.\n\n" +
                 "Best regards,\n" +
                 "CareMatch360 Team",
-                resetUrl
+                code
         );
-        
+
         sendEmail(to, subject, text);
-    }
-
-    @Value("${app.email.verification.url}")
-    private String verificationBaseUrl;
-
-    @Value("${app.email.reset-password.url}")
-    private String resetPasswordBaseUrl;
-
-    private String getVerificationUrl(String token) {
-        return verificationBaseUrl + token;
-    }
-
-    private String getPasswordResetUrl(String token) {
-        return resetPasswordBaseUrl + token;
     }
 }

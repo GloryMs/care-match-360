@@ -1,10 +1,7 @@
 package com.carebillingservice.service;
 
 import com.carebillingservice.config.SubscriptionPlanConfig;
-import com.carebillingservice.dto.CreateSubscriptionRequest;
-import com.carebillingservice.dto.SubscriptionPlanInfo;
-import com.carebillingservice.dto.SubscriptionResponse;
-import com.carebillingservice.dto.UpdateSubscriptionRequest;
+import com.carebillingservice.dto.*;
 import com.carebillingservice.kafka.BillingEventProducer;
 import com.carecommon.kafkaEvents.SubscriptionCreatedEvent;
 import com.carecommon.kafkaEvents.SubscriptionExpiredEvent;
@@ -30,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -130,6 +128,30 @@ public class SubscriptionService {
             log.error("Stripe error creating subscription: providerId={}", request.getProviderId(), e);
             throw new RuntimeException("Failed to create subscription: " + e.getMessage(), e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public SubscriptionStatusDTO getProviderSubscriptionStatus(UUID providerId) {
+        Optional<Subscription> opt = subscriptionRepository.findByProviderId(providerId);
+
+        if (opt.isEmpty()) {
+            // No subscription at all → not active
+            return SubscriptionStatusDTO.builder()
+                    .providerId(providerId)
+                    .isActive(false)
+                    .status("NONE")
+                    .build();
+        }
+
+        Subscription sub = opt.get();
+        boolean isActive = sub.getStatus() == Subscription.SubscriptionStatus.ACTIVE
+                || sub.getStatus() == Subscription.SubscriptionStatus.TRIALING;
+
+        return SubscriptionStatusDTO.builder()
+                .providerId(providerId)
+                .isActive(isActive)
+                .status(sub.getStatus().name())
+                .build();
     }
 
     @Transactional

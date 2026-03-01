@@ -19,7 +19,8 @@ public class PasswordResetToken extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "token", nullable = false, unique = true, length = 255)
+    // 6-digit numeric code — uniqueness enforced at the (user, code) level in application logic.
+    @Column(name = "token", nullable = false, length = 6)
     private String token;
 
     @Column(name = "expires_at", nullable = false)
