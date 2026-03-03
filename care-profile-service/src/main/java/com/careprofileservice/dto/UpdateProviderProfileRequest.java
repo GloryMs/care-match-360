@@ -31,4 +31,17 @@ public class UpdateProviderProfileRequest {
     private Map<String, Object> availability;
     private Map<String, Object> qualityIndicators;
     private Boolean isVisible;
+
+    // New optional profile enrichment fields
+    private String description;
+    private String aboutText;
+    private String phoneNumber;
+    private String website;
+    private Map<String, String> socialLinks;
+    private Integer yearEstablished;
+    private Double rating;
+    private Map<String, String> operatingHours;
+    private List<String> servicesOffered;
+    private List<String> languagesSupported;
+    private List<String> insuranceAccepted;
 }

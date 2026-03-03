@@ -21,6 +21,8 @@ public class ProviderSummaryResponse {
     private UUID id;
     private String facilityName;
     private String providerType;        // RESIDENTIAL | AMBULATORY
+    private String description;         // Short tagline for listing cards
+    private Double rating;
     private String address;
     private String region;
     private Double latitude;

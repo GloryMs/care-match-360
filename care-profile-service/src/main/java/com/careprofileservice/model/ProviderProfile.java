@@ -97,6 +97,48 @@ public class ProviderProfile extends BaseEntity {
     @Column(name = "lifestyle_options", columnDefinition = "jsonb")
     private Map<String, Object> lifestyleOptions;
 
+    // ── New profile enrichment fields ─────────────────────────────────────────
+
+    @Column(name = "description", length = 500)
+    private String description;
+
+    @Column(name = "about_text", columnDefinition = "TEXT")
+    private String aboutText;
+
+    @Column(name = "phone_number", length = 50)
+    private String phoneNumber;
+
+    @Column(name = "website", length = 500)
+    private String website;
+
+    /** Social media links: facebook, twitter, instagram, linkedin */
+    @Type(JsonBinaryType.class)
+    @Column(name = "social_links", columnDefinition = "jsonb")
+    private Map<String, String> socialLinks;
+
+    @Column(name = "year_established")
+    private Integer yearEstablished;
+
+    @Column(name = "rating")
+    private Double rating;
+
+    /** Operating hours per day, e.g. {"monday": "8:00 - 18:00"} */
+    @Type(JsonBinaryType.class)
+    @Column(name = "operating_hours", columnDefinition = "jsonb")
+    private Map<String, String> operatingHours;
+
+    @Type(JsonBinaryType.class)
+    @Column(name = "services_offered", columnDefinition = "jsonb")
+    private List<String> servicesOffered;
+
+    @Type(JsonBinaryType.class)
+    @Column(name = "languages_supported", columnDefinition = "jsonb")
+    private List<String> languagesSupported;
+
+    @Type(JsonBinaryType.class)
+    @Column(name = "insurance_accepted", columnDefinition = "jsonb")
+    private List<String> insuranceAccepted;
+
 
     public enum ProviderType {
         RESIDENTIAL,

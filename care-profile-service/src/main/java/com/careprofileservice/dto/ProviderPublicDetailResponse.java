@@ -25,6 +25,13 @@ public class ProviderPublicDetailResponse {
     private String facilityName;
     private String providerType;        // RESIDENTIAL | AMBULATORY
     private String email;               // public contact email (may be masked by provider)
+    private String description;         // Short tagline
+    private String aboutText;           // Longer "About Us" text
+    private String phoneNumber;
+    private String website;
+    private Map<String, String> socialLinks;   // facebook, twitter, instagram, linkedin
+    private Integer yearEstablished;
+    private Double rating;              // 0–5 scale
 
     // ── Location ──────────────────────────────────────────────────────────────
     private String address;
@@ -49,6 +56,10 @@ public class ProviderPublicDetailResponse {
     private Map<String, Object> qualityIndicators;
     private Map<String, Object> lifestyleOptions;
     private List<Integer> acceptedCareLevels;
+    private Map<String, String> operatingHours;
+    private List<String> servicesOffered;
+    private List<String> languagesSupported;
+    private List<String> insuranceAccepted;
 
     // ── Facility media ────────────────────────────────────────────────────────
     /** All FACILITY_MEDIA documents (images + videos) uploaded by the provider. */

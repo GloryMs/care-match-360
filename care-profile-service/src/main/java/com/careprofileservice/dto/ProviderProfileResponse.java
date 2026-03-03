@@ -40,4 +40,17 @@ public class ProviderProfileResponse {
     private Boolean isVisible;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Profile enrichment fields
+    private String description;
+    private String aboutText;
+    private String phoneNumber;
+    private String website;
+    private Map<String, String> socialLinks;
+    private Integer yearEstablished;
+    private Double rating;
+    private Map<String, String> operatingHours;
+    private List<String> servicesOffered;
+    private List<String> languagesSupported;
+    private List<String> insuranceAccepted;
 }

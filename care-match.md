@@ -21,9 +21,11 @@
         - [Public Provider Directory](#get-providers)
         - [Public Provider Detail](#get-providersprovideridpublic)
         - [Provider Media List](#get-providersprovideridmedia)
+    - [File Download Endpoints](#73-file-download-endpoints)
 8. [Care Match Service — Port 8003](#8-care-match-service--port-8003)
     - [Match Endpoints](#81-match-endpoints)
     - [Offer Endpoints](#82-offer-endpoints)
+    - [Care Request Endpoints](#83-care-request-endpoints)
 9. [Care Billing Service — Port 8004](#9-care-billing-service--port-8004)
     - [Subscription Endpoints](#91-subscription-endpoints)
     - [Invoice Endpoints](#92-invoice-endpoints)
@@ -80,8 +82,8 @@ After a user registers, the following sequence must be followed exactly:
 
 ```
 1. POST /auth/register          → creates user account (unverified)
-2. User clicks verification link in email
-3. POST /auth/verify-email      → verifies account
+2. User receives 6-digit code in email (expires in 15 minutes)
+3. POST /auth/verify-email      → verifies account (send email + code)
                                   → backend AUTO-CREATES a basic profile with email pre-filled
 4. POST /auth/login             → get accessToken + user.id
 5. GET  /patients/me            → (PATIENT / RELATIVE roles) check if profile exists
@@ -503,7 +505,7 @@ Deactivate a user account.
 |---|---|
 | `userId` | `UUID` |
 
-**Response** — `ApiResponse<UserResponse>`
+**Response** — `ApiResponse<null>`
 
 ---
 
@@ -517,7 +519,7 @@ Reactivate a previously deactivated user account.
 |---|---|
 | `userId` | `UUID` |
 
-**Response** — `ApiResponse<UserResponse>`
+**Response** — `ApiResponse<null>`
 
 ---
 
@@ -581,21 +583,9 @@ Enable 2FA after scanning the QR code and verifying the first TOTP code.
 
 #### `POST /auth/2fa/disable`
 
-Disable 2FA by verifying the current code.
+Disable 2FA for the current user. No request body required.
 
 **Headers** — `X-User-Id` required
-
-**Request Body**
-
-| Field | Type | Required |
-|---|---|---|
-| `code` | `string` | Yes |
-
-```json
-{
-  "code": "123456"
-}
-```
 
 **Response** — `ApiResponse<null>`
 
@@ -848,6 +838,14 @@ Delete a document from the patient profile.
 | `documentId` | `UUID` |
 
 **Response** — `ApiResponse<null>`
+
+---
+
+#### `GET /patients/all`
+
+> **Internal endpoint** — used by the matching engine to retrieve all patients who have given consent. Should be called service-to-service or by ADMIN only; not for general frontend use.
+
+**Response** — `ApiResponse<List<PatientProfileResponse>>`
 
 ---
 
@@ -1262,6 +1260,72 @@ Delete a document from the provider profile.
 
 ---
 
+#### `GET /providers/all`
+
+> **Internal endpoint** — used by the matching engine to retrieve all active providers. Should be called service-to-service or by ADMIN only; not for general frontend use.
+
+**Response** — `ApiResponse<List<ProviderProfileResponse>>`
+
+---
+
+### 7.3 File Download Endpoints
+
+Served by care-profile-service (port 8002). Files are stored encrypted on disk and decrypted on the fly. The `encodedKey` path parameter is the **Base64-URL (no padding)** encoding of the logical storage key returned as `fileUrl` in `DocumentResponse`.
+
+#### `GET /files/download/{encodedKey}`
+
+Download a file as an attachment (triggers browser save dialog).
+
+**Path Parameters**
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `encodedKey` | `string` | Base64-URL encoded storage key from `DocumentResponse.fileUrl` |
+
+**Response** — Binary file stream
+**Content-Type:** actual file MIME type (e.g. `image/jpeg`, `application/pdf`)
+**Content-Disposition:** `attachment; filename="<originalFilename>"`
+
+---
+
+#### `GET /files/view/{encodedKey}`
+
+Inline preview — browser renders the file instead of downloading it. Suitable for embedding images and PDFs in the UI.
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `encodedKey` | `string` |
+
+**Response** — Binary file stream
+**Content-Disposition:** `inline; filename="<originalFilename>"`
+
+---
+
+#### `GET /files/info/{encodedKey}`
+
+Lightweight metadata endpoint — returns file info without streaming the file content.
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `encodedKey` | `string` |
+
+**Response** — `FileInfoResponse` _(plain JSON, not wrapped in `ApiResponse`)_
+
+```json
+{
+  "key": "providers/550e8400.../entrance.jpg",
+  "originalFilename": "entrance.jpg",
+  "contentType": "image/jpeg",
+  "downloadUrl": "http://localhost:8002/api/v1/files/download/<encodedKey>"
+}
+```
+
+---
+
 ## 8. Care Match Service — Port 8003
 
 Base path: `/api/v1`
@@ -1320,7 +1384,7 @@ Trigger the match score calculation between a specific patient and provider.
 
 #### `GET /matches/patient/{patientId}`
 
-Get all match scores for a patient, paginated.
+Get all match scores for a patient.
 
 **Path Parameters**
 
@@ -1330,18 +1394,18 @@ Get all match scores for a patient, paginated.
 
 **Query Parameters**
 
-| Parameter | Type | Default |
-|---|---|---|
-| `page` | `integer` | `0` |
-| `size` | `integer` | `20` |
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | `integer` | No | Passed to service for optional pagination |
+| `size` | `integer` | No | Passed to service for optional pagination |
 
-**Response** — `ApiResponse<PageResponse<MatchScoreResponse>>`
+**Response** — `ApiResponse<List<MatchScoreResponse>>`
 
 ---
 
 #### `GET /matches/provider/{providerId}`
 
-Get all match scores for a provider, paginated.
+Get all match scores for a provider.
 
 **Path Parameters**
 
@@ -1351,12 +1415,12 @@ Get all match scores for a provider, paginated.
 
 **Query Parameters**
 
-| Parameter | Type | Default |
-|---|---|---|
-| `page` | `integer` | `0` |
-| `size` | `integer` | `20` |
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | `integer` | No | Passed to service for optional pagination |
+| `size` | `integer` | No | Passed to service for optional pagination |
 
-**Response** — `ApiResponse<PageResponse<MatchScoreResponse>>`
+**Response** — `ApiResponse<List<MatchScoreResponse>>`
 
 ---
 
@@ -1563,7 +1627,7 @@ Get an offer by its ID.
 
 #### `GET /offers/patient/{patientId}`
 
-Get all offers received by a patient, paginated.
+Get all offers received by a patient.
 
 **Path Parameters**
 
@@ -1573,18 +1637,18 @@ Get all offers received by a patient, paginated.
 
 **Query Parameters**
 
-| Parameter | Type | Default |
-|---|---|---|
-| `page` | `integer` | `0` |
-| `size` | `integer` | `20` |
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | `integer` | No | Passed to service for optional pagination |
+| `size` | `integer` | No | Passed to service for optional pagination |
 
-**Response** — `ApiResponse<PageResponse<OfferResponse>>`
+**Response** — `ApiResponse<List<OfferResponse>>`
 
 ---
 
 #### `GET /offers/provider/{providerId}`
 
-Get all offers sent by a provider, paginated.
+Get all offers sent by a provider.
 
 **Path Parameters**
 
@@ -1594,12 +1658,12 @@ Get all offers sent by a provider, paginated.
 
 **Query Parameters**
 
-| Parameter | Type | Default |
-|---|---|---|
-| `page` | `integer` | `0` |
-| `size` | `integer` | `20` |
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | `integer` | No | Passed to service for optional pagination |
+| `size` | `integer` | No | Passed to service for optional pagination |
 
-**Response** — `ApiResponse<PageResponse<OfferResponse>>`
+**Response** — `ApiResponse<List<OfferResponse>>`
 
 ---
 
@@ -1642,6 +1706,123 @@ Get the full status change history of an offer.
   "timestamp": "2026-02-22T10:00:00"
 }
 ```
+
+---
+
+### 8.3 Care Request Endpoints
+
+A care request is a direct contact initiated by a **patient** to a **provider**. The provider can then respond by creating an offer (`POST /offers`) or declining the request.
+
+**Status flow:** `PENDING` → `ACCEPTED` (when provider creates a linked offer) | `DECLINED`
+
+---
+
+#### `POST /care-requests`
+
+Patient submits a care request to a specific provider.
+
+**Headers**
+
+| Header | Required |
+|---|---|
+| `X-Patient-Id` | Yes — patient profile UUID |
+
+**Request Body**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `providerId` | `UUID` | Yes | Target provider profile UUID |
+| `patientMessage` | `string` | No | Optional message to the provider (max 1000 chars) |
+
+```json
+{
+  "providerId": "550e8400-e29b-41d4-a716-446655440002",
+  "patientMessage": "We are looking for a room for my mother starting next month."
+}
+```
+
+**Response** `201` — `ApiResponse<CareRequestResponse>`
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "req-uuid-001",
+    "patientId": "550e8400-e29b-41d4-a716-446655440001",
+    "providerId": "550e8400-e29b-41d4-a716-446655440002",
+    "status": "PENDING",
+    "patientMessage": "We are looking for a room for my mother starting next month.",
+    "declineReason": null,
+    "linkedOfferId": null,
+    "providerName": "Sonnenschein Pflegeheim",
+    "providerType": "RESIDENTIAL",
+    "providerAddress": "Musterstraße 1, 80331 Munich",
+    "createdAt": "2026-03-01T10:00:00",
+    "updatedAt": "2026-03-01T10:00:00",
+    "respondedAt": null
+  },
+  "message": "Care request submitted successfully",
+  "timestamp": "2026-03-01T10:00:00"
+}
+```
+
+---
+
+#### `GET /care-requests/patient`
+
+Patient retrieves their submitted care requests, paginated.
+
+**Headers** — `X-Patient-Id` required
+
+**Query Parameters**
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `status` | `string` | — | Filter: `PENDING` \| `ACCEPTED` \| `DECLINED` |
+| `page` | `integer` | `0` | |
+| `size` | `integer` | `20` | |
+
+**Response** `200` — `ApiResponse<Page<CareRequestResponse>>`
+
+---
+
+#### `GET /care-requests/provider`
+
+Provider retrieves their incoming request inbox, paginated.
+
+**Headers** — `X-Provider-Id` required
+
+**Query Parameters** — same as above (`status`, `page`, `size`)
+
+**Response** `200` — `ApiResponse<Page<CareRequestResponse>>`
+
+---
+
+#### `PUT /care-requests/{requestId}/decline`
+
+Provider declines a care request.
+
+**Headers** — `X-Provider-Id` required
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `requestId` | `UUID` |
+
+**Request Body**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `declineReason` | `string` | No | Optional explanation (max 500 chars) |
+
+```json
+{
+  "declineReason": "No available rooms matching the required care level at this time."
+}
+```
+
+**Response** `200` — `ApiResponse<CareRequestResponse>` _(status changes to `DECLINED`, `respondedAt` is set)_
 
 ---
 
@@ -1745,7 +1926,7 @@ Cancel a subscription. The subscription remains active until the end of the curr
 |---|---|
 | `subscriptionId` | `UUID` |
 
-**Response** — `ApiResponse<SubscriptionResponse>` _(status changes to `CANCELLED`)_
+**Response** — `ApiResponse<null>`
 
 ---
 
@@ -1774,6 +1955,33 @@ Get the active subscription for a provider.
 | `providerId` | `UUID` |
 
 **Response** — `ApiResponse<SubscriptionResponse>`
+
+---
+
+#### `GET /subscriptions/provider/{providerId}/status`
+
+Lightweight subscription status check. Returns whether the provider's subscription is currently active (status `ACTIVE` or `TRIALING`). Used internally by the matching service to gate offer creation.
+
+**Path Parameters**
+
+| Parameter | Type |
+|---|---|
+| `providerId` | `UUID` |
+
+**Response** — `ApiResponse<SubscriptionStatusDTO>`
+
+```json
+{
+  "success": true,
+  "data": {
+    "providerId": "550e8400-e29b-41d4-a716-446655440002",
+    "isActive": true,
+    "status": "TRIALING"
+  },
+  "message": "OK",
+  "timestamp": "2026-02-22T10:00:00"
+}
+```
 
 ---
 
@@ -1830,7 +2038,7 @@ Get an invoice by its human-readable invoice number.
 
 #### `GET /invoices/subscription/{subscriptionId}`
 
-Get all invoices for a subscription, paginated.
+Get all invoices for a subscription.
 
 **Path Parameters**
 
@@ -1840,12 +2048,12 @@ Get all invoices for a subscription, paginated.
 
 **Query Parameters**
 
-| Parameter | Type | Default |
-|---|---|---|
-| `page` | `integer` | `0` |
-| `size` | `integer` | `20` |
+| Parameter | Type | Required | Notes |
+|---|---|---|---|
+| `page` | `integer` | No | Passed to service for optional pagination |
+| `size` | `integer` | No | Passed to service for optional pagination |
 
-**Response** — `ApiResponse<PageResponse<InvoiceResponse>>`
+**Response** — `ApiResponse<List<InvoiceResponse>>`
 
 ---
 
