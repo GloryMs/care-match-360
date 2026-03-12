@@ -1,5 +1,6 @@
 package com.careprofileservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 /**
@@ -15,7 +16,12 @@ import lombok.Data;
 @Data
 public class SubscriptionStatusDTO {
 
-    /** True when the provider's subscription is ACTIVE or TRIALING. */
+    /**
+     * True when the provider's subscription is ACTIVE or TRIALING.
+     * Billing service serializes the primitive boolean field as "active" (Jackson strips "is" prefix
+     * from isXxx() getters), so we must bind to that exact JSON key.
+     */
+    @JsonProperty("active")
     private Boolean isActive;
 
     /** The raw status string (e.g. "ACTIVE", "TRIALING", "CANCELLED"). */

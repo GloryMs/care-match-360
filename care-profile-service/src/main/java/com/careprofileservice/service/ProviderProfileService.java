@@ -181,6 +181,7 @@ public class ProviderProfileService {
      * Retrieves a provider profile by the identity-service user UUID.
      * Throws ResourceNotFoundException if no profile exists for this user.
      */
+    @Transactional(readOnly = true)
     public ProviderProfileResponse getProviderProfileByUserId(UUID userId) {
         ProviderProfile profile = providerProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(

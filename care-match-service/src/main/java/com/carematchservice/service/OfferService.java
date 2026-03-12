@@ -181,13 +181,12 @@ public class OfferService {
         log.info("createAndSendOfferFromSearch: providerUserId={}, patientProfileId={}",
                 providerUserId, request.getPatientProfileId());
 
-        // ── 1. Subscription gate ──────────────────────────────────────────────
-        checkSubscription(providerUserId);
-
-        // ── 2. Resolve provider profile ID from user ID ───────────────────────
-        //      The X-User-Id header carries the identity userId; we need the
-        //      profile UUID that is stored on offers.
+        // ── 1. Resolve provider profile ID from user ID ───────────────────────
+        //      Must happen first — subscription is stored by profile ID, not user ID.
         UUID providerProfileId = resolveProviderProfileId(providerUserId);
+
+        // ── 2. Subscription gate ──────────────────────────────────────────────
+        checkSubscription(providerProfileId);
 
         // ── 3. Validate the target patient profile exists ─────────────────────
         PatientProfileDTO patientProfile = fetchPatientProfile(request.getPatientProfileId());
