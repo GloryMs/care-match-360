@@ -1,5 +1,6 @@
 package com.careprofileservice.dto;
 
+import com.careprofileservice.model.CareServiceTier;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,4 +49,14 @@ public class CreatePatientProfileRequest {
 
     @NotNull(message = "Consent must be provided")
     private Boolean consentGiven;
+
+    /**
+     * Patient's affordable / preferred care service tier.
+     * Defaults to STANDARD if not supplied.
+     *
+     * STANDARD  → statutory GKV care only
+     * COMFORT   → mid-range with selected premium amenities
+     * PREMIUM   → full VIP / private-pay care
+     */
+    private CareServiceTier careServiceTier = CareServiceTier.STANDARD;
 }

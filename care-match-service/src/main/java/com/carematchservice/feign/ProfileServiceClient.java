@@ -42,4 +42,17 @@ public interface ProfileServiceClient {
      */
     @GetMapping("/providers/all")
     ApiResponse<List<ProviderProfileDTO>> getAllActiveProviders();
+
+
+    /**
+     * Resolves a provider profile by the identity service user UUID.
+     * Backed by: GET /api/v1/providers/by-user/{userId}  in care-profile-service.
+     *
+     * Used by OfferService.createAndSendOfferFromSearch() to convert the
+     * X-User-Id header (identity userId) into the provider's profile UUID,
+     * which is what the Offer entity stores.
+     */
+    @GetMapping("/providers/by-user/{userId}")
+    ApiResponse<ProviderProfileDTO> getProviderProfileByUserId(@PathVariable("userId") UUID userId);
+
 }

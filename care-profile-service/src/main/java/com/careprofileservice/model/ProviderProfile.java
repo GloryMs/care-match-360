@@ -9,9 +9,7 @@ import org.hibernate.annotations.Type;
 import org.locationtech.jts.geom.Point;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "provider_profiles", schema = "care_profiles")
@@ -138,6 +136,40 @@ public class ProviderProfile extends BaseEntity {
     @Type(JsonBinaryType.class)
     @Column(name = "insurance_accepted", columnDefinition = "jsonb")
     private List<String> insuranceAccepted;
+
+    // ── NEW FIELDS ─────────────────────────────────────────────────────────────
+
+    /**
+     * The service tiers this provider supports.
+     * A provider may offer multiple tiers (e.g. standard wards AND a premium wing).
+     *
+     * Values: STANDARD, COMFORT, PREMIUM
+     * Used for matching (tier compatibility) and patient-search filtering.
+     */
+    @ElementCollection
+    @CollectionTable(name = "provider_service_tiers",
+            joinColumns = @JoinColumn(name = "provider_profile_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_tier")
+    @Builder.Default
+    private Set<ProviderServiceTier> offeredServiceTiers = new HashSet<>(
+            Set.of(ProviderServiceTier.STANDARD)
+    );
+
+    /**
+     * Free-text descriptions of VIP / luxury services offered (visible in public directory).
+     * Examples: "Private chef", "Concierge transport", "On-site physiotherapy",
+     *           "Luxury en-suite rooms", "Cultural programme"
+     */
+    @ElementCollection
+    @CollectionTable(name = "provider_premium_services",
+            joinColumns = @JoinColumn(name = "provider_profile_id"))
+    @Column(name = "service_description")
+    @Builder.Default
+    private List<String> premiumServices = new ArrayList<>();
+
+    // ──────────────────────────────────────────────────────────────────────────
+
 
 
     public enum ProviderType {

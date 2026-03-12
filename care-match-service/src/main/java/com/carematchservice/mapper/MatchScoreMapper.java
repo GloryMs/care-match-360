@@ -5,6 +5,9 @@ import com.carematchservice.model.MatchScore;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Mapper(componentModel = "spring")
 public interface MatchScoreMapper {
 
@@ -12,4 +15,15 @@ public interface MatchScoreMapper {
     @Mapping(target = "providerType", ignore = true)
     @Mapping(target = "providerAddress", ignore = true)
     MatchScoreResponse toResponse(MatchScore matchScore);
+
+    default Map<String, Double> map(Map<String, Object> value) {
+        if (value == null) return null;
+        Map<String, Double> result = new HashMap<>();
+        value.forEach((k, v) -> {
+            if (v instanceof Number) {
+                result.put(k, ((Number) v).doubleValue());
+            }
+        });
+        return result;
+    }
 }

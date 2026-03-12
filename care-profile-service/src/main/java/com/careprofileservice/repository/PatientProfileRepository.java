@@ -23,4 +23,6 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
     List<PatientProfile> findByCareLevel(Integer careLevel);
 
     List<PatientProfile> findByConsentGivenTrue();
+
+    List<PatientProfile> findAllByConsentGivenTrueAndProfilePublicTrue();
 }

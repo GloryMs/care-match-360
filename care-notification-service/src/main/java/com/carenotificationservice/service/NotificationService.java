@@ -105,6 +105,21 @@ public class NotificationService {
     @Transactional
     public void sendOfferReceivedNotification(OfferSentEvent event) {
         try {
+
+            // ── Idempotency guard ──────────────────────────────────────────────
+            boolean alreadySent = notificationRepository
+                    .existsByRecipientIdAndChannelAndCreatedAtAfter(
+                            event.getPatientId(),
+                            "offer_received",
+                            LocalDateTime.now().minusMinutes(5)
+                    );
+            if (alreadySent) {
+                log.warn("Duplicate offer_received notification suppressed for patientId={}, offerId={}",
+                        event.getPatientId(), event.getOfferId());
+                return;
+            }
+            // ──────────────────────────────────────────────────────────────────
+
             String email = resolveEmailByPatientProfileId(event.getPatientId());
 
             String subject = "You Have Received a New Care Offer!";

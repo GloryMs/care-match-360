@@ -21,11 +21,21 @@ public class MatchScoreResponse {
     private UUID providerId;
     private BigDecimal score;
     private Map<String, Object> explanation;
-    private Map<String, Object> scoreBreakdown;
     private LocalDateTime calculatedAt;
 
     // Optional: Include provider details for convenience
     private String providerName;
     private String providerType;
     private String providerAddress;
+
+    /**
+     * Detailed breakdown per scoring dimension.
+     * Keys: careLevel, distance, specialization, servicetier, lifestyle, social, quality
+     * Values: contribution score 0–100
+     */
+    private Map<String, Double> scoreBreakdown;
+
+    /** Tier offered by this provider — useful for display. */
+    private java.util.Set<String> providerServiceTiers;
+    private java.util.List<String> providerPremiumServices;
 }

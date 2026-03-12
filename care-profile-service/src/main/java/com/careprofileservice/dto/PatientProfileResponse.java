@@ -1,5 +1,6 @@
 package com.careprofileservice.dto;
 
+import com.careprofileservice.model.CareServiceTier;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,6 +30,10 @@ public class PatientProfileResponse {
     private Map<String, Object> medicalRequirements;
     private Map<String, Boolean> dataVisibility;
     private Boolean consentGiven;
+    /** Patient's affordable / preferred care service tier — always public. */
+    private CareServiceTier careServiceTier;
+    /** Always true — profile is visible to all subscribed providers. */
+    private Boolean profilePublic;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

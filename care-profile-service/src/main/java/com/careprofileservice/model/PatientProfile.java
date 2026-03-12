@@ -59,4 +59,29 @@ public class PatientProfile extends BaseEntity {
     @Column(name = "consent_given")
     @Builder.Default
     private Boolean consentGiven = false;
+
+    // ── NEW FIELD ──────────────────────────────────────────────────────────────
+    /**
+     * The patient's preferred / affordable care service tier.
+     * STANDARD  → basic statutory care (GKV-covered)
+     * COMFORT   → mid-range with selected premium amenities
+     * PREMIUM   → full VIP / luxury care with private-pay capacity
+     * Replaces the former vague "financial capability" concept with a
+     * domain-meaningful, actionable classification that providers can filter on.
+     * This field is always PUBLIC — visible to all subscribed providers.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "care_service_tier", nullable = false)
+    @Builder.Default
+    private CareServiceTier careServiceTier = CareServiceTier.STANDARD;
+
+    /**
+     * Whether the full profile is publicly visible to subscribed providers.
+     * Always TRUE — patient listings are public by design.
+     * Kept as a column for potential future fine-grained visibility toggles.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean profilePublic = Boolean.TRUE;
+    //
 }

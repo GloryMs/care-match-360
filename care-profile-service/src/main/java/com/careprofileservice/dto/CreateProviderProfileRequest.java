@@ -1,5 +1,6 @@
 package com.careprofileservice.dto;
 
+import com.careprofileservice.model.ProviderServiceTier;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 @Builder
@@ -61,4 +63,19 @@ public class CreateProviderProfileRequest {
     private List<String> servicesOffered;
     private List<String> languagesSupported;
     private List<String> insuranceAccepted;
+
+    // ── NEW ───────────────────────────────────────────────────────────────────
+    /**
+     * Which care service tiers this facility supports.
+     * At least one tier must be specified; defaults to [STANDARD].
+     */
+    private Set<ProviderServiceTier> offeredServiceTiers;
+
+    /**
+     * VIP / luxury services available (shown in public directory).
+     * Only meaningful when offeredServiceTiers includes COMFORT or PREMIUM.
+     * Examples: "Private chef", "Luxury en-suite", "On-site spa"
+     */
+    private List<String> premiumServices;
+    //
 }

@@ -116,6 +116,27 @@ public class ProviderProfileController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    /**
+     * GET /api/v1/providers/by-user/{userId}
+     *
+     * Internal / service-to-service endpoint.
+     * Resolves a provider profile by the identity-service user UUID.
+     *
+     * Called by care-match-service when a provider sends an offer from the
+     * patient search results, where only the X-User-Id header (identity userId)
+     * is available, not the profile UUID.
+     *
+     * Access: Protected — requires a valid JWT. No role restriction because
+     *         care-match-service calls this with its service token.
+     */
+    @GetMapping("/by-user/{userId}")
+    public ResponseEntity<ApiResponse<ProviderProfileResponse>> getProviderProfileByUserId(
+            @PathVariable UUID userId) {
+
+        ProviderProfileResponse profile = providerProfileService.getProviderProfileByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.success(profile, "OK"));
+    }
+
     // ── NEW: Full public provider detail (Requirement 2) ──────────────────────
     /**
      * GET /api/v1/providers/{providerId}/public

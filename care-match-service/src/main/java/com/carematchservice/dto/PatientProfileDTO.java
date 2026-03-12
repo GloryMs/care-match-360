@@ -26,4 +26,10 @@ public class PatientProfileDTO {
     private List<String> careType;
     private Map<String, Object> lifestyleAttributes;
     private Map<String, Object> medicalRequirements;
+    /**
+     * Patient's affordable / preferred care service tier.
+     * Values: "STANDARD" | "COMFORT" | "PREMIUM"
+     * Used in tier compatibility scoring (15% weight).
+     */
+    private String careServiceTier;
 }

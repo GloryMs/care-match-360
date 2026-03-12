@@ -1,12 +1,14 @@
 package com.carematchservice.controller;
 
 import com.carecommon.dto.ApiResponse;
+import com.carematchservice.dto.CreateOfferFromSearchRequest;
 import com.carematchservice.dto.CreateOfferRequest;
 import com.carematchservice.dto.OfferHistoryResponse;
 import com.carematchservice.dto.OfferResponse;
 import com.carematchservice.service.OfferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/offers")
 @RequiredArgsConstructor
 //@Tag(name = "Offers", description = "Offer management endpoints")
+@Slf4j
 public class OfferController {
 
     private final OfferService offerService;
@@ -100,5 +103,42 @@ public class OfferController {
 
         List<OfferHistoryResponse> history = offerService.getOfferHistory(offerId);
         return ResponseEntity.ok(ApiResponse.success(history));
+    }
+
+    // ── NEW endpoint ──────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/offers/from-patient-search
+     *
+     * Provider sends an offer directly to a patient found via the patient search directory.
+     * This combines the create + send steps in one call for a streamlined UX.
+     *
+     * Access: RESIDENTIAL_PROVIDER or AMBULATORY_PROVIDER with active subscription.
+     *
+     * Body:
+     * {
+     *   "patientProfileId": "uuid-of-patient",
+     *   "message": "We are pleased to offer you a place in our premium ward...",
+     *   "proposedStartDate": "2026-04-01",
+     *   "monthlyFee": 3500.00,
+     *   "includedServices": ["Meals", "Laundry", "Physiotherapy"],
+     *   "validUntil": "2026-03-20"
+     * }
+     *
+     * Returns the created + sent offer.
+     * Status transitions: DRAFT → SENT in a single operation.
+     */
+    @PostMapping("/from-patient-search")
+    //@PreAuthorize("hasAnyRole('RESIDENTIAL_PROVIDER','AMBULATORY_PROVIDER')")
+    public ResponseEntity<ApiResponse<OfferResponse>> sendOfferFromPatientSearch(
+            @RequestHeader("X-User-Id") UUID providerUserId,
+            @Valid @RequestBody CreateOfferFromSearchRequest request) {
+
+        log.info("Provider {} sending offer to patient {} from search", providerUserId,
+                request.getPatientProfileId());
+
+        OfferResponse offer = offerService.createAndSendOfferFromSearch(providerUserId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(offer, "Offer sent to patient"));
     }
 }

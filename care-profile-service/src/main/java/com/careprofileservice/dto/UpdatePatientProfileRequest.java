@@ -1,6 +1,7 @@
 package com.careprofileservice.dto;
 
 
+import com.careprofileservice.model.CareServiceTier;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,4 +27,6 @@ public class UpdatePatientProfileRequest {
     private Map<String, Object> medicalRequirements;
     private Map<String, Boolean> dataVisibility;
     private Boolean consentGiven;
+    /** Patient can update their own care service tier at any time. */
+    private CareServiceTier careServiceTier;
 }

@@ -30,4 +30,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     long countByRecipientIdAndReadAtIsNull(UUID recipientId);
 
     void deleteByCreatedAtBefore(LocalDateTime dateTime);
+
+    boolean existsByRecipientIdAndChannelAndCreatedAtAfter(UUID recipientId, String channel, LocalDateTime after);
 }

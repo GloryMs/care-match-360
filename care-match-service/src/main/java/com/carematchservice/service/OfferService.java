@@ -2,11 +2,9 @@ package com.carematchservice.service;
 
 import com.carecommon.dto.ApiResponse;
 import com.carecommon.exception.ResourceNotFoundException;
-import com.carematchservice.dto.CreateOfferRequest;
-import com.carematchservice.dto.OfferHistoryResponse;
-import com.carematchservice.dto.OfferResponse;
-import com.carematchservice.dto.SubscriptionStatusDTO;
+import com.carematchservice.dto.*;
 import com.carematchservice.feign.BillingServiceClient;
+import com.carematchservice.feign.ProfileServiceClient;
 import com.carematchservice.kafka.MatchingEventProducer;
 import com.carecommon.kafkaEvents.OfferAcceptedEvent;
 import com.carecommon.kafkaEvents.OfferRejectedEvent;
@@ -19,6 +17,7 @@ import com.carematchservice.model.OfferHistory;
 import com.carematchservice.repository.MatchScoreRepository;
 import com.carematchservice.repository.OfferHistoryRepository;
 import com.carematchservice.repository.OfferRepository;
+import feign.FeignException;
 import jakarta.validation.ValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +30,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -48,6 +49,7 @@ public class OfferService {
     private final MatchingEventProducer matchingEventProducer;
     private final BillingServiceClient billingServiceClient;
     private final CareRequestService   careRequestService;
+    private final ProfileServiceClient profileServiceClient;
 
     @Value("${app.offer.expiration-days}")
     private int offerExpirationDays;
@@ -146,6 +148,203 @@ public class OfferService {
                     providerId, e.getMessage());
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // NEW METHOD — createAndSendOfferFromSearch
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Creates an offer directly from the patient search results and immediately
+     * sends it (DRAFT → SENT in a single transaction).
+     *
+     * Flow:
+     *  1. Verify provider has an active subscription (subscription gate).
+     *  2. Resolve the provider's own profile ID from their userId via ProfileServiceClient.
+     *  3. Validate the target patient profile exists (also via ProfileServiceClient).
+     *  4. Guard against duplicate in-flight offers to the same patient.
+     *  5. Optionally attach an existing match score if one was pre-computed.
+     *  6. Build availabilityDetails from the search-request fields (start date,
+     *     monthly fee, included services, valid-until date).
+     *  7. Persist the offer directly in SENT status — no intermediate DRAFT.
+     *  8. Record two history entries: DRAFT creation + SENT transition.
+     *  9. Publish the offer.sent Kafka event.
+     *
+     * @param providerUserId  identity user-id of the calling provider (from X-User-Id header)
+     * @param request         payload from POST /offers/from-patient-search
+     * @return                the persisted offer in SENT status
+     */
+    @Transactional
+    public OfferResponse createAndSendOfferFromSearch(
+            UUID providerUserId,
+            CreateOfferFromSearchRequest request) {
+
+        log.info("createAndSendOfferFromSearch: providerUserId={}, patientProfileId={}",
+                providerUserId, request.getPatientProfileId());
+
+        // ── 1. Subscription gate ──────────────────────────────────────────────
+        checkSubscription(providerUserId);
+
+        // ── 2. Resolve provider profile ID from user ID ───────────────────────
+        //      The X-User-Id header carries the identity userId; we need the
+        //      profile UUID that is stored on offers.
+        UUID providerProfileId = resolveProviderProfileId(providerUserId);
+
+        // ── 3. Validate the target patient profile exists ─────────────────────
+        PatientProfileDTO patientProfile = fetchPatientProfile(request.getPatientProfileId());
+
+        // ── 4. Duplicate-offer guard ──────────────────────────────────────────
+        //      Prevent spamming: one active (DRAFT/SENT) offer per provider→patient pair.
+        boolean alreadyHasActiveOffer = offerRepository
+                .existsByProviderIdAndPatientIdAndStatusIn(
+                        providerProfileId,
+                        request.getPatientProfileId(),
+                        List.of(Offer.OfferStatus.DRAFT, Offer.OfferStatus.SENT));
+
+        if (alreadyHasActiveOffer) {
+            throw new ValidationException(
+                    "You already have an active offer for this patient. " +
+                            "Please wait for their response before sending another.");
+        }
+
+        // ── 5. Attach existing match score if available ───────────────────────
+        MatchScore matchScore = matchScoreRepository
+                .findByPatientIdAndProviderId(request.getPatientProfileId(), providerProfileId)
+                .orElse(null);
+
+        // ── 6. Build availabilityDetails map from request fields ──────────────
+        //      Reuses the existing JSONB column on Offer; no schema changes needed.
+        Map<String, Object> availabilityDetails = buildAvailabilityDetails(request);
+
+        // ── 7. Persist offer directly in SENT status ──────────────────────────
+        //      Skips DRAFT to avoid a two-step save; history still records both
+        //      lifecycle entries below so the audit trail is complete.
+        Offer offer = Offer.builder()
+                .patientId(request.getPatientProfileId())
+                .providerId(providerProfileId)
+                .matchId(matchScore != null ? matchScore.getId() : null)
+                .status(Offer.OfferStatus.SENT)
+                .message(request.getMessage())
+                .availabilityDetails(availabilityDetails)
+                .expiresAt(request.getValidUntil() != null
+                        ? request.getValidUntil().atStartOfDay()
+                        : LocalDateTime.now().plusDays(offerExpirationDays))
+                .build();
+
+        offer = offerRepository.save(offer);
+        log.info("Offer created+sent from patient search: offerId={}, patientId={}, providerId={}",
+                offer.getId(), request.getPatientProfileId(), providerProfileId);
+
+        // ── 8. History: two entries to reflect DRAFT→SENT lifecycle ──────────
+        recordOfferHistory(offer.getId(), null,
+                Offer.OfferStatus.DRAFT.name(), providerProfileId,
+                "Offer created via patient search");
+
+        recordOfferHistory(offer.getId(),
+                Offer.OfferStatus.DRAFT.name(), Offer.OfferStatus.SENT.name(),
+                providerProfileId,
+                "Offer immediately sent to patient from search results");
+
+        // ── 9. Publish Kafka event ────────────────────────────────────────────
+        publishOfferSentEvent(offer, providerProfileId);
+
+        // ── Build response ────────────────────────────────────────────────────
+        OfferResponse response = offerMapper.toResponse(offer);
+        if (matchScore != null) {
+            response.setMatchScore(matchScore.getScore().doubleValue());
+        }
+        return response;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIVATE HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Resolves the provider's profile UUID (care-profile-service UUID)
+     * from their identity service user UUID.
+     * Uses the existing GET /providers/me-style lookup via ProfileServiceClient.
+     */
+    private UUID resolveProviderProfileId(UUID providerUserId) {
+        try {
+            ApiResponse<ProviderProfileDTO> response =
+                    profileServiceClient.getProviderProfileByUserId(providerUserId);
+
+            if (response == null || response.getData() == null) {
+                throw new ResourceNotFoundException("Provider profile", "userId", providerUserId);
+            }
+            return response.getData().getId();
+
+        } catch (FeignException.NotFound e) {
+            throw new ResourceNotFoundException("Provider profile", "userId", providerUserId);
+        } catch (FeignException e) {
+            log.error("Feign error resolving provider profile for userId={}", providerUserId, e);
+            throw new RuntimeException("Failed to resolve provider profile", e);
+        }
+    }
+
+    /**
+     * Fetches and validates a patient profile by its profile UUID.
+     * Throws ResourceNotFoundException if not found.
+     */
+    private PatientProfileDTO fetchPatientProfile(UUID patientProfileId) {
+        try {
+            ApiResponse<PatientProfileDTO> response =
+                    profileServiceClient.getPatientProfile(patientProfileId);
+
+            if (response == null || response.getData() == null) {
+                throw new ResourceNotFoundException("Patient profile", "id", patientProfileId);
+            }
+            return response.getData();
+
+        } catch (FeignException.NotFound e) {
+            throw new ResourceNotFoundException("Patient profile", "id", patientProfileId);
+        } catch (FeignException e) {
+            log.error("Feign error fetching patient profile: patientProfileId={}", patientProfileId, e);
+            throw new RuntimeException("Failed to fetch patient profile", e);
+        }
+    }
+
+    /**
+     * Translates the search-request offer fields into the generic
+     * availabilityDetails JSONB map stored on the Offer entity.
+     * Null fields are omitted to keep the JSON clean.
+     */
+    private Map<String, Object> buildAvailabilityDetails(CreateOfferFromSearchRequest request) {
+        Map<String, Object> details = new LinkedHashMap<>();
+
+        if (request.getProposedStartDate() != null) {
+            details.put("availableFrom", request.getProposedStartDate().toString());
+        }
+        if (request.getMonthlyFee() != null) {
+            details.put("monthlyFeeEur", request.getMonthlyFee());
+        }
+        if (request.getIncludedServices() != null && !request.getIncludedServices().isEmpty()) {
+            details.put("includedServices", request.getIncludedServices());
+        }
+        if (request.getValidUntil() != null) {
+            details.put("validUntil", request.getValidUntil().toString());
+        }
+        details.put("source", "PATIENT_SEARCH");
+
+        return details;
+    }
+
+    /**
+     * Shared helper that constructs and publishes an OfferSentEvent to Kafka.
+     * Called from both sendOffer() and createAndSendOfferFromSearch().
+     */
+    private void publishOfferSentEvent(Offer offer, UUID actorProviderId) {
+        OfferSentEvent event = OfferSentEvent.builder()
+                .eventType("offer.sent")
+                .offerId(offer.getId())
+                .patientId(offer.getPatientId())
+                .providerId(actorProviderId)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        matchingEventProducer.sendOfferSentEvent(event);
+    }
+
 
     @Transactional
     public OfferResponse acceptOffer(UUID offerId, UUID patientId) {

@@ -1,6 +1,7 @@
 package com.careprofileservice.dto;
 
 
+import com.careprofileservice.model.ProviderServiceTier;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Data
@@ -40,6 +42,12 @@ public class ProviderProfileResponse {
     private Boolean isVisible;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /** Service tiers supported by this provider. */
+    private Set<ProviderServiceTier> offeredServiceTiers;
+
+    /** Human-readable list of VIP / luxury services. */
+    private List<String> premiumServices;
 
     // Profile enrichment fields
     private String description;

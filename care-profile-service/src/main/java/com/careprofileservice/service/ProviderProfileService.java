@@ -173,6 +173,22 @@ public class ProviderProfileService {
         return profileResponse;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+// ADD THIS METHOD to ProviderProfileService
+// ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Retrieves a provider profile by the identity-service user UUID.
+     * Throws ResourceNotFoundException if no profile exists for this user.
+     */
+    public ProviderProfileResponse getProviderProfileByUserId(UUID userId) {
+        ProviderProfile profile = providerProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Provider profile", "userId", userId));
+
+        return providerProfileMapper.toResponse(profile);
+    }
+
     @Transactional
     public ProviderSearchResponse searchProviders(UUID userId, ProviderSearchRequest searchRequest) {
         log.info("Searching providers with criteria: {}", searchRequest);
