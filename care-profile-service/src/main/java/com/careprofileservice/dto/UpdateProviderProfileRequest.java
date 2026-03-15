@@ -1,5 +1,6 @@
 package com.careprofileservice.dto;
 
+import com.careprofileservice.model.ProviderServiceTier;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Data
 @Builder
@@ -44,4 +46,7 @@ public class UpdateProviderProfileRequest {
     private List<String> servicesOffered;
     private List<String> languagesSupported;
     private List<String> insuranceAccepted;
+
+    private Set<ProviderServiceTier> offeredServiceTiers;
+    private List<String> premiumServices;
 }

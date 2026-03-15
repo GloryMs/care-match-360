@@ -116,6 +116,18 @@ public class ProviderProfileService {
 
         // Update profile
         providerProfileMapper.updateEntity(request, profile);
+
+        // @ElementCollection fields must be updated by mutating the tracked collection,
+        // not by replacing the reference, to avoid Hibernate detached-collection issues.
+        if (request.getOfferedServiceTiers() != null && !request.getOfferedServiceTiers().isEmpty()) {
+            profile.getOfferedServiceTiers().clear();
+            profile.getOfferedServiceTiers().addAll(request.getOfferedServiceTiers());
+        }
+        if (request.getPremiumServices() != null) {
+            profile.getPremiumServices().clear();
+            profile.getPremiumServices().addAll(request.getPremiumServices());
+        }
+
         profile = providerProfileRepository.save(profile);
 
         log.info("Provider profile updated: userId={}, profileId={}", userId, profile.getId());

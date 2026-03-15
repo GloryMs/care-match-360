@@ -142,7 +142,6 @@ public class ProviderProfile extends BaseEntity {
     /**
      * The service tiers this provider supports.
      * A provider may offer multiple tiers (e.g. standard wards AND a premium wing).
-     *
      * Values: STANDARD, COMFORT, PREMIUM
      * Used for matching (tier compatibility) and patient-search filtering.
      */

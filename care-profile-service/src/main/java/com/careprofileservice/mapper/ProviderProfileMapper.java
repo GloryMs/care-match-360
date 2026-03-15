@@ -39,6 +39,8 @@ public interface ProviderProfileMapper {
     @Mapping(target = "location", expression = "java(updatePoint(request.getLatitude(), request.getLongitude(), profile.getLocation()))")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "offeredServiceTiers", ignore = true)
+    @Mapping(target = "premiumServices", ignore = true)
     void updateEntity(UpdateProviderProfileRequest request, @MappingTarget ProviderProfile profile);
 
     default ProviderProfile.ProviderType mapProviderType(String providerType) {
