@@ -407,7 +407,7 @@ public class MatchingAlgorithmService {
     // EXISTING utility methods — unchanged
     // ─────────────────────────────────────────────────────────────────────────
 
-    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    public double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
         final int EARTH_RADIUS = 6371;
         double latDistance = Math.toRadians(lat2 - lat1);
         double lonDistance = Math.toRadians(lon2 - lon1);

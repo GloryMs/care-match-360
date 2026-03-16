@@ -5,7 +5,9 @@ import com.carecommon.dto.ApiResponse;
 import com.carecommon.exception.ResourceNotFoundException;
 import com.carematchservice.dto.MatchScoreResponse;
 import com.carematchservice.dto.PatientProfileDTO;
+import com.carematchservice.dto.PatientSummaryDTO;
 import com.carematchservice.dto.ProviderProfileDTO;
+import com.carematchservice.dto.ProviderSummaryDTO;
 import com.carematchservice.feign.ProfileServiceClient;
 import com.carecommon.kafkaEvents.MatchCalculatedEvent;
 import com.carematchservice.kafka.MatchingEventProducer;
@@ -98,6 +100,8 @@ public class MatchingService {
 
         MatchScoreResponse response = matchScoreMapper.toResponse(matchScore);
         enrichResponseWithProviderDetails(response, provider);
+        enrichResponseWithPatientSummary(response, patient, provider);
+        enrichResponseWithProviderSummary(response, patient, provider);
         return response;
     }
 
@@ -253,12 +257,21 @@ public class MatchingService {
         Pageable pageable = PageRequest.of(page != null ? page : 0, size != null ? size : 20);
         Page<MatchScore> matchesPage = matchScoreRepository.findByPatientIdOrderByScoreDesc(patientId, pageable);
 
+        PatientProfileDTO patient = null;
+        try {
+            patient = fetchPatientProfile(patientId);
+        } catch (Exception e) {
+            log.warn("Could not fetch patient details for enrichment: patientId={}", patientId, e);
+        }
+        final PatientProfileDTO finalPatient = patient;
+
         return matchesPage.getContent().stream()
                 .map(match -> {
                     MatchScoreResponse response = matchScoreMapper.toResponse(match);
                     try {
                         ProviderProfileDTO provider = fetchProviderProfile(match.getProviderId());
                         enrichResponseWithProviderDetails(response, provider);
+                        enrichResponseWithProviderSummary(response, finalPatient, provider);
                     } catch (Exception e) {
                         log.warn("Could not fetch provider details: providerId={}", match.getProviderId(), e);
                     }
@@ -272,8 +285,25 @@ public class MatchingService {
         Pageable pageable = PageRequest.of(page != null ? page : 0, size != null ? size : 20);
         Page<MatchScore> matchesPage = matchScoreRepository.findByProviderIdOrderByScoreDesc(providerId, pageable);
 
+        ProviderProfileDTO provider = null;
+        try {
+            provider = fetchProviderProfile(providerId);
+        } catch (Exception e) {
+            log.warn("Could not fetch provider details for enrichment: providerId={}", providerId, e);
+        }
+        final ProviderProfileDTO finalProvider = provider;
+
         return matchesPage.getContent().stream()
-                .map(matchScoreMapper::toResponse)
+                .map(match -> {
+                    MatchScoreResponse response = matchScoreMapper.toResponse(match);
+                    try {
+                        PatientProfileDTO patient = fetchPatientProfile(match.getPatientId());
+                        enrichResponseWithPatientSummary(response, patient, finalProvider);
+                    } catch (Exception e) {
+                        log.warn("Could not fetch patient details for match: patientId={}", match.getPatientId(), e);
+                    }
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -282,6 +312,14 @@ public class MatchingService {
         List<MatchScore> matches = matchScoreRepository.findByPatientIdAndScoreGreaterThanEqual(
                 patientId, BigDecimal.valueOf(matchingThreshold));
 
+        PatientProfileDTO patient = null;
+        try {
+            patient = fetchPatientProfile(patientId);
+        } catch (Exception e) {
+            log.warn("Could not fetch patient details for enrichment: patientId={}", patientId, e);
+        }
+        final PatientProfileDTO finalPatient = patient;
+
         return matches.stream()
                 .limit(limit)
                 .map(match -> {
@@ -289,6 +327,7 @@ public class MatchingService {
                     try {
                         ProviderProfileDTO provider = fetchProviderProfile(match.getProviderId());
                         enrichResponseWithProviderDetails(response, provider);
+                        enrichResponseWithProviderSummary(response, finalPatient, provider);
                     } catch (Exception e) {
                         log.warn("Could not fetch provider details: providerId={}", match.getProviderId(), e);
                     }
@@ -306,10 +345,13 @@ public class MatchingService {
 
         MatchScoreResponse response = matchScoreMapper.toResponse(matchScore);
         try {
+            PatientProfileDTO patient = fetchPatientProfile(patientId);
             ProviderProfileDTO provider = fetchProviderProfile(providerId);
             enrichResponseWithProviderDetails(response, provider);
+            enrichResponseWithPatientSummary(response, patient, provider);
+            enrichResponseWithProviderSummary(response, patient, provider);
         } catch (Exception e) {
-            log.warn("Could not fetch provider details: providerId={}", providerId, e);
+            log.warn("Could not fetch profile details for match: patientId={}, providerId={}", patientId, providerId, e);
         }
         return response;
     }
@@ -442,5 +484,51 @@ public class MatchingService {
         response.setProviderName(provider.getFacilityName());
         response.setProviderType(provider.getProviderType() != null
                 ? provider.getProviderType() : null);
+    }
+
+    private void enrichResponseWithProviderSummary(MatchScoreResponse response,
+                                                    PatientProfileDTO patient,
+                                                    ProviderProfileDTO provider) {
+        if (provider == null) return;
+
+        Double distanceKm = null;
+        if (patient != null && patient.getLatitude() != null && patient.getLongitude() != null
+                && provider.getLatitude() != null && provider.getLongitude() != null) {
+            double raw = matchingAlgorithmService.calculateDistance(
+                    patient.getLatitude(), patient.getLongitude(),
+                    provider.getLatitude(), provider.getLongitude());
+            distanceKm = Math.round(raw * 10.0) / 10.0;
+        }
+
+        boolean available = provider.getAvailableRooms() != null && provider.getAvailableRooms() > 0;
+
+        response.setProviderSummary(ProviderSummaryDTO.builder()
+                .name(provider.getFacilityName())
+                .type(provider.getProviderType())
+                .specializations(provider.getSpecializations())
+                .distanceKm(distanceKm)
+                .available(available)
+                .build());
+    }
+
+    private void enrichResponseWithPatientSummary(MatchScoreResponse response,
+                                                   PatientProfileDTO patient,
+                                                   ProviderProfileDTO provider) {
+        if (patient == null) return;
+
+        Double distanceKm = null;
+        if (patient.getLatitude() != null && patient.getLongitude() != null
+                && provider != null && provider.getLatitude() != null && provider.getLongitude() != null) {
+            double raw = matchingAlgorithmService.calculateDistance(
+                    patient.getLatitude(), patient.getLongitude(),
+                    provider.getLatitude(), provider.getLongitude());
+            distanceKm = Math.round(raw * 10.0) / 10.0;
+        }
+
+        response.setPatientSummary(PatientSummaryDTO.builder()
+                .careLevel(patient.getCareLevel())
+                .distanceKm(distanceKm)
+                .needs(patient.getCareType())
+                .build());
     }
 }

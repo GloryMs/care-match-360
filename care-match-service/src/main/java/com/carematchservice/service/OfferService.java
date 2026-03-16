@@ -128,7 +128,9 @@ public class OfferService {
 
         matchingEventProducer.sendOfferSentEvent(event);
 
-        return offerMapper.toResponse(offer);
+        OfferResponse response = offerMapper.toResponse(offer);
+        enrichOfferWithMatchScore(response, offer);
+        return response;
     }
 
     private void checkSubscription(UUID providerId) {
@@ -388,7 +390,9 @@ public class OfferService {
 
         matchingEventProducer.sendOfferAcceptedEvent(event);
 
-        return offerMapper.toResponse(offer);
+        OfferResponse response = offerMapper.toResponse(offer);
+        enrichOfferWithMatchScore(response, offer);
+        return response;
     }
 
     @Transactional
@@ -427,7 +431,9 @@ public class OfferService {
 
         matchingEventProducer.sendOfferRejectedEvent(event);
 
-        return offerMapper.toResponse(offer);
+        OfferResponse response = offerMapper.toResponse(offer);
+        enrichOfferWithMatchScore(response, offer);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -435,7 +441,10 @@ public class OfferService {
         Offer offer = offerRepository.findById(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer", "id", offerId));
 
-        return offerMapper.toResponse(offer);
+        OfferResponse response = offerMapper.toResponse(offer);
+        enrichOfferWithMatchScore(response, offer);
+        enrichOfferWithProviderName(response, offer.getProviderId());
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -445,7 +454,12 @@ public class OfferService {
         Page<Offer> offersPage = offerRepository.findByPatientIdOrderByCreatedAtDesc(patientId, pageable);
 
         return offersPage.getContent().stream()
-                .map(offerMapper::toResponse)
+                .map(offer -> {
+                    OfferResponse response = offerMapper.toResponse(offer);
+                    enrichOfferWithMatchScore(response, offer);
+                    enrichOfferWithProviderName(response, offer.getProviderId());
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -456,7 +470,11 @@ public class OfferService {
         Page<Offer> offersPage = offerRepository.findByProviderIdOrderByCreatedAtDesc(providerId, pageable);
 
         return offersPage.getContent().stream()
-                .map(offerMapper::toResponse)
+                .map(offer -> {
+                    OfferResponse response = offerMapper.toResponse(offer);
+                    enrichOfferWithMatchScore(response, offer);
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -508,5 +526,26 @@ public class OfferService {
                 .build();
 
         offerHistoryRepository.save(history);
+    }
+
+    private void enrichOfferWithProviderName(OfferResponse response, UUID providerId) {
+        try {
+            ApiResponse<ProviderProfileDTO> providerResponse = profileServiceClient.getProviderProfile(providerId);
+            if (providerResponse != null && providerResponse.getData() != null) {
+                response.setProviderName(providerResponse.getData().getFacilityName());
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch provider name for offer enrichment: providerId={}", providerId, e);
+        }
+    }
+
+    private void enrichOfferWithMatchScore(OfferResponse response, Offer offer) {
+        if (offer.getMatchId() != null) {
+            matchScoreRepository.findById(offer.getMatchId())
+                    .ifPresent(ms -> response.setMatchScore(ms.getScore().doubleValue()));
+        } else {
+            matchScoreRepository.findByPatientIdAndProviderId(offer.getPatientId(), offer.getProviderId())
+                    .ifPresent(ms -> response.setMatchScore(ms.getScore().doubleValue()));
+        }
     }
 }

@@ -38,4 +38,10 @@ public class MatchScoreResponse {
     /** Tier offered by this provider — useful for display. */
     private java.util.Set<String> providerServiceTiers;
     private java.util.List<String> providerPremiumServices;
+
+    /** Patient-side summary: populated when the caller is a provider viewing their matched patients. */
+    private PatientSummaryDTO patientSummary;
+
+    /** Provider-side summary: populated when the caller is a patient viewing their matches. */
+    private ProviderSummaryDTO providerSummary;
 }
