@@ -8,6 +8,7 @@ import com.careprofileservice.kafka.ProfileEventProducer;
 import com.careprofileservice.mapper.ProviderProfileMapper;
 import com.careprofileservice.model.Document;
 import com.careprofileservice.model.ProviderProfile;
+import com.careprofileservice.model.ProviderServiceTier;
 import com.careprofileservice.model.SearchHistory;
 import com.careprofileservice.repository.DocumentRepository;
 import com.careprofileservice.repository.ProviderProfileRepository;
@@ -346,8 +347,9 @@ public class ProviderProfileService {
      *   region    — case-insensitive contains match on address/region
      *   careLevel — provider must support this care level (check acceptedCareLevels JSON array)
      */
+    @Transactional(readOnly = true)
     public Page<ProviderSummaryResponse> listProviders(
-            String type, String region, Integer careLevel, int page, int size) {
+            String type, String region, Integer careLevel, String careServiceTier, int page, int size) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("facilityName").ascending());
 
@@ -367,6 +369,16 @@ public class ProviderProfileService {
                     if (careLevel == null) return true;
                     if (p.getAcceptedCareLevels() == null) return false;
                     return p.getAcceptedCareLevels().contains(careLevel);
+                })
+                .filter(p -> {
+                    if (careServiceTier == null) return true;
+                    if (p.getOfferedServiceTiers() == null) return false;
+                    try {
+                        return p.getOfferedServiceTiers()
+                                .contains(ProviderServiceTier.valueOf(careServiceTier.toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        return false;
+                    }
                 })
                 .toList();
 
@@ -399,6 +411,16 @@ public class ProviderProfileService {
             maxLevel = p.getAcceptedCareLevels().stream().max(Integer::compare).orElse(null);
         }
 
+        Set<String> tiers = p.getOfferedServiceTiers() != null
+                ? p.getOfferedServiceTiers().stream()
+                        .map(Enum::name)
+                        .collect(Collectors.toSet())
+                : null;
+
+        List<String> premiumSvcs = p.getPremiumServices() != null
+                ? new ArrayList<>(p.getPremiumServices())
+                : null;
+
         return ProviderSummaryResponse.builder()
                 .id(p.getId())
                 .facilityName(p.getFacilityName())
@@ -409,6 +431,8 @@ public class ProviderProfileService {
                 .latitude(p.getLocation() != null ? p.getLocation().getY() : null)
                 .longitude(p.getLocation() != null ? p.getLocation().getX() : null)
                 .specializations(p.getSpecializations())
+                .offeredServiceTiers(tiers)
+                .premiumServices(premiumSvcs)
                 .minCareLevel(minLevel)
                 .maxCareLevel(maxLevel)
                 .primaryImageUrl(primaryImage)
@@ -422,6 +446,7 @@ public class ProviderProfileService {
     /**
      * Returns the full public provider profile enriched with facility media.
      */
+    @Transactional(readOnly = true)
     public ProviderPublicDetailResponse getPublicDetail(UUID providerId) {
         ProviderProfile p = providerProfileRepository.findById(providerId)
                 .orElseThrow(() -> new com.carecommon.exception.ResourceNotFoundException(
@@ -476,6 +501,14 @@ public class ProviderProfileService {
                 .servicesOffered(p.getServicesOffered())
                 .languagesSupported(p.getLanguagesSupported())
                 .insuranceAccepted(p.getInsuranceAccepted())
+                .offeredServiceTiers(p.getOfferedServiceTiers() != null
+                        ? p.getOfferedServiceTiers().stream()
+                                .map(Enum::name)
+                                .collect(Collectors.toSet())
+                        : null)
+                .premiumServices(p.getPremiumServices() != null
+                        ? new ArrayList<>(p.getPremiumServices())
+                        : null)
                 .facilityMedia(mediaResponses)
                 .isVisible(Boolean.TRUE.equals(p.getIsVisible()))
                 .build();

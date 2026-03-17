@@ -108,11 +108,12 @@ public class ProviderProfileController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) Integer careLevel,
+            @RequestParam(required = false) String careServiceTier,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "20") int size) {
 
         size = Math.min(size, 50); // cap at 50
-        Page<ProviderSummaryResponse> result = providerProfileService.listProviders(type, region, careLevel, page, size);
+        Page<ProviderSummaryResponse> result = providerProfileService.listProviders(type, region, careLevel, careServiceTier, page, size);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -33,6 +34,8 @@ public class ProviderSummaryResponse {
     private Integer maxCareLevel;
 
     private List<String> specializations;
+    private Set<String> offeredServiceTiers;
+    private List<String> premiumServices;
 
     /** URL of the first FACILITY_MEDIA image, if any (thumbnail). */
     private String primaryImageUrl;

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -60,6 +61,10 @@ public class ProviderPublicDetailResponse {
     private List<String> servicesOffered;
     private List<String> languagesSupported;
     private List<String> insuranceAccepted;
+
+    // ── Service tiers & premium offerings ────────────────────────────────────
+    private Set<String> offeredServiceTiers;
+    private List<String> premiumServices;
 
     // ── Facility media ────────────────────────────────────────────────────────
     /** All FACILITY_MEDIA documents (images + videos) uploaded by the provider. */
